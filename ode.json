@@ -1,0 +1,5 @@
+{
+  "hivModel": "This is a placeholder for the HIV model ODE equations.",
+  "covidModel": "This is a placeholder for the COVID model ODE equations.",
+  "simpleModel": "This is a placeholder for the Simple SIR model ODE equations."
+}
