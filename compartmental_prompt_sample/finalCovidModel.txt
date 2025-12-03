@@ -21,9 +21,15 @@ Output:
 ********************************************************************************
 METAMODEL:
 {
-  "seirmodel_metamodel": {
-    "version": "2.0",
-    "description": "EpiMDE Metamodel - Supports both numeric and parametric (symbolic) modeling approaches for epidemiological compartmental models",
+  "compartmental_metamodel": {
+    "version": "3.1",
+    "description": "EpiMDE Compartmental Metamodel - Unified framework for epidemiological models, classical traffic networks, and Traffic Reaction Model (TRM) with parametric (symbolic) modeling support",
+    "changelog": {
+      "3.1": "Added Traffic Reaction Model (TRM) support with flux decomposition, dual variable tracking, and kinetic interpretation. New decomposition types: TRM_MAK, TRM_GODUNOV, TRM_CAPACITATED. Extended TRM with capacity drop factors. Fully backward compatible.",
+      "3.0": "Added traffic network modeling with supply-demand dynamics, PP/FIFO junction rules, and triangular fundamental diagram support. Fully backward compatible with disease models.",
+      "2.0": "Added comprehensive parameter system for symbolic/parametric modeling with Unicode support",
+      "1.0": "Initial SEIR/epidemiological metamodel"
+    },
     "structure": {
       "xml_declaration": {
         "version": "1.0",
@@ -142,13 +148,141 @@ METAMODEL:
         "optional_attributes": [
           "SecondaryName",
           "population",
-          "product"
+          "product",
+          "junctionRule"
         ],
         "child_elements": [
-          "outgoingFlows"
+          "outgoingFlows",
+          "supplyFunction"
         ],
         "constraints": {
-          "product": "Reference to product using format '//@products.X'"
+          "product": "Reference to product using format '//@products.X'",
+          "junctionRule": "Optional. For traffic models use PPFIFO. For disease models use NONE (default)."
+        },
+        "attributes": {
+          "PrimaryName": {
+            "description": "Main identifier for the compartment",
+            "examples": [
+              "Susceptible",
+              "Exposed",
+              "Infectious",
+              "Onramp1",
+              "Link2"
+            ]
+          },
+          "SecondaryName": {
+            "description": "Additional descriptor for stratification or link type",
+            "examples": [
+              "Adults",
+              "Children",
+              "Ordinary",
+              "Onramp"
+            ]
+          },
+          "population": {
+            "description": "Initial population count (disease models) or initial density (traffic models)",
+            "constraint": "Must be float/decimal value"
+          },
+          "junctionRule": {
+            "description": "Junction rule type for traffic models. NONE for disease models (default), PPFIFO for traffic networks.",
+            "values": [
+              "NONE",
+              "PPFIFO",
+              "CUSTOM"
+            ],
+            "default": "NONE"
+          }
+        }
+      },
+      "supplyFunction": {
+        "element": "supplyFunction",
+        "required_attributes": [
+          "type"
+        ],
+        "optional_attributes": [
+          "isSourceNode",
+          "maxDensity",
+          "criticalDensity",
+          "maxThroughput",
+          "maxDemand",
+          "omega",
+          "capacityDropFactor",
+          "enableDualVariable"
+        ],
+        "description": "Flow network supply and demand functions based on capacity constraints. Supports classical traffic models (Coogan & Arcak 2015) and Traffic Reaction Model (TRM) with kinetic decompositions (Pereira et al. 2024). Generalizable to traffic networks, queue systems, pipeline networks, etc. Only present for flow-constrained models. Disease models do not have this element.",
+        "attributes": {
+          "type": {
+            "description": "Type of supply/demand function",
+            "values": [
+              "NONE",
+              "TRIANGULAR",
+              "LINEAR",
+              "CUSTOM",
+              "TRM_MAK",
+              "TRM_GODUNOV",
+              "TRM_CAPACITATED"
+            ],
+            "default": "NONE"
+          },
+          "isSourceNode": {
+            "description": "Boolean indicating if this is a source/entry node with external input (true) or constrained internal node (false)",
+            "values": [
+              "true",
+              "false"
+            ],
+            "default": "false",
+            "examples": [
+              "Onramps in traffic, generators in systems, entry queues in networks"
+            ]
+          },
+          "maxDensity": {
+            "description": "Maximum density/capacity - saturation point (constrained nodes only)",
+            "unit": "entities/space",
+            "traffic_example": "\u03c1^jam - vehicles per length when stopped"
+          },
+          "criticalDensity": {
+            "description": "Critical density/threshold - point of maximum throughput (constrained nodes only)",
+            "unit": "entities/space",
+            "traffic_example": "\u03c1^crit - density at maximum flow"
+          },
+          "maxThroughput": {
+            "description": "Maximum throughput/capacity - max flow rate (constrained nodes only)",
+            "unit": "entities/time",
+            "traffic_example": "\u03a6^crit - vehicles per hour"
+          },
+          "maxDemand": {
+            "description": "Maximum demand/output rate - upper bound on outflow (source nodes only)",
+            "unit": "entities/time",
+            "traffic_example": "\u03a6^max - max vehicles per hour from onramp"
+          },
+          "omega": {
+            "description": "Reaction rate constant \u03c9 for TRM_MAK (Mass Action Kinetic) decomposition. Used in flux g(\u03c1,\u03bd) = \u03c9\u03c1\u03bd where \u03bd = \u03c1_max - \u03c1 (TRM models only)",
+            "unit": "1/(entities\u00b7time)",
+            "trm_example": "\u03c9 = 0.001 for MAK decomposition",
+            "default": "0.0"
+          },
+          "capacityDropFactor": {
+            "description": "Time-varying capacity drop factor C_i(t) for Extended TRM models. Enables modeling of changing traffic conditions (incidents, construction, weather). Value in range (0, 1] where 1 = normal capacity (TRM models only)",
+            "unit": "dimensionless",
+            "trm_example": "0.75 represents 25% capacity reduction",
+            "default": "1.0"
+          },
+          "enableDualVariable": {
+            "description": "Boolean flag to enable dual variable tracking: \u03c1 (vehicle density) and \u03bd (free space density) where \u03bd = \u03c1_max - \u03c1. Enables kinetic/compartmental interpretation of TRM (TRM models only)",
+            "values": [
+              "true",
+              "false"
+            ],
+            "default": "false",
+            "note": "When true, simulation tracks both occupied space N_i and free space S_i"
+          }
+        },
+        "examples": {
+          "source_node": "<supplyFunction type=\"TRIANGULAR\" isSourceNode=\"true\" maxDemand=\"3000\"/>",
+          "constrained_node": "<supplyFunction type=\"TRIANGULAR\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\"/>",
+          "trm_mak_node": "<supplyFunction type=\"TRM_MAK\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" omega=\"0.001\" enableDualVariable=\"true\"/>",
+          "trm_godunov_node": "<supplyFunction type=\"TRM_GODUNOV\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" enableDualVariable=\"true\"/>",
+          "extended_trm_node": "<supplyFunction type=\"TRM_CAPACITATED\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" capacityDropFactor=\"0.8\" enableDualVariable=\"true\"/>"
         }
       },
       "outgoingFlows": {
@@ -393,6 +527,15 @@ METAMODEL:
       }
     },
     "compartment_types": {
+      "traffic_components": [
+        "Onramp",
+        "Link",
+        "Ordinary Link",
+        "Highway Link",
+        "Road Segment",
+        "Junction",
+        "Merge Point"
+      ],
       "epidemiological_states": [
         "Susceptible",
         "Exposed",
@@ -554,9 +697,333 @@ METAMODEL:
       "stratum_validation": "stratumSpecificRates stratum values must match the values defined in the referenced Group",
       "population_balance": "BirthSources and DeathSinks help maintain population balance in the model",
       "description": "Even though description is optional, it would be very helpful if each flow has a brief description explaining the purpose of this flow.",
-      "unicode_support": "Parameter names support Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)"
+      "unicode_support": "Parameter names support Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)",
+      "flow_network_validation": {
+        "supply_function_required": "Flow-constrained compartments must have a supplyFunction element",
+        "junction_rule_required": "Flow network compartments must set junctionRule=\"PPFIFO\" or \"CUSTOM\"",
+        "source_node_attributes": "Source nodes (isSourceNode=true) must specify maxDemand but not maxDensity/criticalDensity/maxThroughput",
+        "constrained_node_attributes": "Constrained nodes (isSourceNode=false) must specify maxDensity, criticalDensity, maxThroughput but not maxDemand",
+        "split_ratios": "Outgoing flows from network compartments should use RateFlow with parameters representing split ratios/routing coefficients",
+        "source_node_input": "Source nodes should have a BirthSource with rateParameter for external input/demand",
+        "consistency": "All compartments in a model should be either all flow-network (with supplyFunction) or all disease (without supplyFunction)"
+      },
+      "trm_validation": {
+        "trm_type_validation": "TRM compartments must use type=\"TRM_MAK\", \"TRM_GODUNOV\", or \"TRM_CAPACITATED\"",
+        "trm_mak_omega": "TRM_MAK type requires omega attribute to be specified (reaction rate constant \u03c9)",
+        "omega_positive": "omega must be positive: \u03c9 > 0",
+        "capacity_drop_range": "capacityDropFactor must be in range (0, 1]: 0 < C_i(t) \u2264 1",
+        "dual_variable_flag": "enableDualVariable=\"true\" recommended for TRM models to track both \u03c1 and \u03bd = \u03c1_max - \u03c1",
+        "trm_base_attributes": "All TRM compartments must specify maxDensity (\u03c1_max), criticalDensity (\u03c1_crit), and maxThroughput (\u03a6_max)",
+        "extended_trm_capacity": "Extended TRM models with capacityDropFactor should use values < 1.0 to model reduced capacity scenarios",
+        "trm_compatibility": "TRM models are compatible with classical traffic models - can mix TRIANGULAR and TRM types in same network",
+        "godunov_equivalence": "TRM_GODUNOV with proper configuration is equivalent to Cell Transmission Model (CTM)"
+      }
     },
     "model_extensions": {
+      "traffic_networks": {
+        "description": "NEW in Version 3.0: Traffic network modeling with supply-demand dynamics and PP/FIFO junction rules",
+        "features": [
+          "Supply and demand functions for road links (triangular fundamental diagram)",
+          "PP/FIFO (Proportional Priority, First-In-First-Out) junction rules",
+          "Onramps as unbounded queues with max demand",
+          "Ordinary links with capacity constraints",
+          "Non-cooperative dynamics for traffic optimization",
+          "Backward compatible with disease models"
+        ],
+        "components": {
+          "SupplyFunction": {
+            "description": "Defines traffic flow characteristics based on vehicle density",
+            "types": {
+              "TRIANGULAR": "Standard traffic model (Daganzo 1994, Coogan & Arcak 2015)",
+              "LINEAR": "Simplified linear flow model",
+              "CUSTOM": "User-defined supply/demand functions",
+              "NONE": "No supply function (disease models)"
+            },
+            "source_nodes": {
+              "description": "Entry points with unbounded storage (e.g., onramps in traffic, generators in systems)",
+              "demand": "\u03a6^out(\u03c1) = min(max(\u03c1, maxDemand), maxDemand)",
+              "supply": "\u03a6^in(\u03c1) = \u221e",
+              "attributes": [
+                "type",
+                "isSourceNode=true",
+                "maxDemand"
+              ]
+            },
+            "constrained_nodes": {
+              "description": "Internal nodes with capacity constraints (e.g., road segments in traffic, pipes in flow networks)",
+              "demand": "\u03a6^out(\u03c1) = min((maxThroughput/criticalDensity)*\u03c1, maxThroughput) for \u03c1 \u2264 criticalDensity; maxThroughput for \u03c1 > criticalDensity",
+              "supply": "\u03a6^in(\u03c1) = maxThroughput for \u03c1 \u2264 criticalDensity; (maxThroughput/(maxDensity-criticalDensity))*(maxDensity-\u03c1) for \u03c1 > criticalDensity",
+              "attributes": [
+                "type",
+                "isSourceNode=false",
+                "maxDensity",
+                "criticalDensity",
+                "maxThroughput"
+              ]
+            }
+          },
+          "JunctionRule": {
+            "description": "Specifies how flows are computed at network junctions",
+            "types": {
+              "NONE": "No junction constraints (disease models - default)",
+              "PPFIFO": "Proportional Priority, First-In-First-Out (traffic networks)",
+              "CUSTOM": "User-defined junction rules"
+            },
+            "ppfifo_rule": {
+              "description": "\u03b1_v(\u03c1) = max{\u03b1 \u2208 [0,1] : \u03b1 \u03a3_{j\u2208incoming} \u03b2_{jk} \u03a6^out_j(\u03c1_j) \u2264 \u03a6^in_k(\u03c1_k) \u2200k\u2208outgoing}",
+              "computation": "At each time step, compute \u03b1 that satisfies downstream supply constraints",
+              "output_flow": "f^out_l(\u03c1) = \u03b1_v(\u03c1) * \u03a6^out_l(\u03c1_l) for all incoming links"
+            }
+          }
+        },
+        "dynamics": {
+          "disease_models": {
+            "description": "Standard rate-based and contact-based flows (unchanged)",
+            "equations": [
+              "dS/dt = -\u03b2*S*I (Contact flow)",
+              "dI/dt = \u03b2*S*I - \u03b3*I (Rate flow)",
+              "dR/dt = \u03b3*I (Rate flow)"
+            ]
+          },
+          "traffic_models": {
+            "description": "Supply-demand constrained flows with PP/FIFO",
+            "equations": [
+              "Onramps: d\u03c1_l/dt = d_l - f^out_l(\u03c1)",
+              "Ordinary: d\u03c1_l/dt = f^in_l(\u03c1) - f^out_l(\u03c1)"
+            ],
+            "note": "f^out and f^in computed via PP/FIFO rule with supply-demand constraints"
+          }
+        },
+        "backward_compatibility": {
+          "description": "Traffic features are fully optional - disease models work unchanged",
+          "disease_models": "Leave supplyFunction absent and junctionRule=NONE (default)",
+          "traffic_models": "Add supplyFunction element and set junctionRule=PPFIFO",
+          "detection": "Presence of supplyFunction element indicates traffic model"
+        },
+        "use_cases": {
+          "traffic_networks": [
+            "Highway traffic flow optimization",
+            "Ramp metering control",
+            "Congestion analysis",
+            "Network throughput optimization"
+          ],
+          "disease_models": [
+            "Epidemiological compartmental models (SEIR, SIR, etc.)",
+            "Vector-borne disease transmission",
+            "Age-stratified disease models",
+            "Multi-pathogen models"
+          ]
+        },
+        "examples": {
+          "source_node_traffic": {
+            "description": "Source node (onramp) with max demand 3000 vehicles/hour",
+            "xml": "<compartments PrimaryName=\"Onramp1\" population=\"0\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRIANGULAR\" isSourceNode=\"true\" maxDemand=\"3000\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.0\" target=\"//@compartments.1\"/>\n</compartments>"
+          },
+          "constrained_node_traffic": {
+            "description": "Constrained node (road link) with capacity constraints",
+            "xml": "<compartments PrimaryName=\"Link2\" population=\"37.5\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRIANGULAR\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.1\" target=\"//@compartments.2\"/>\n</compartments>"
+          },
+          "disease_compartment": {
+            "description": "Disease compartment (unchanged - no flow network features)",
+            "xml": "<compartments PrimaryName=\"Susceptible\" population=\"1000\">\n  <outgoingFlows xsi:type=\"seir:ContactFlow\" contactRateParameter=\"//@parameters.0\" contactCompartment=\"//@compartments.1\" target=\"//@compartments.1\"/>\n</compartments>"
+          }
+        },
+        "references": [
+          "Coogan, S., & Arcak, M. (2015). A Compartmental Model for Traffic Networks and its Dynamical Behavior. IEEE Trans. Automatic Control, 60(10), 2698-2703.",
+          "Daganzo, C. F. (1994). The Cell Transmission Model: A Dynamic Representation of Highway Traffic. Transportation Research Part B, 28(4), 269-287."
+        ]
+      },
+      "traffic_reaction_model": {
+        "description": "NEW in Version 3.1: Traffic Reaction Model (TRM) - A kinetic compartmental approach to road traffic modeling with flux decomposition and dual variable tracking (Pereira et al. 2024)",
+        "features": [
+          "Flux decomposition: f(\u03c1) = g(\u03c1, \u03c1_max - \u03c1) using dual variables",
+          "Dual variable tracking: \u03c1 (vehicle density) and \u03bd (free space density)",
+          "Kinetic interpretation: traffic as chemical reactions between compartments",
+          "Multiple decomposition types: MAK, Godunov, Capacitated",
+          "TRM-CTM equivalence: TRM is equivalent to Cell Transmission Model",
+          "Extended TRM: Time-varying capacity drop factors C_i(t)",
+          "Network TRM: Multi-lane intersections with incoming/outgoing flows",
+          "Fully backward compatible with classical traffic models"
+        ],
+        "mathematical_foundation": {
+          "lwr_model": "\u2202_t \u03c1 + \u2202_x f(\u03c1) = r - s (Lighthill-Whitham-Richards)",
+          "flux_decomposition": "f(\u03c1) = g(\u03c1, \u03bd) where \u03bd = \u03c1_max - \u03c1",
+          "trm_discretization": "\u03c1\u0307_i = (1/\u0394x)[F(\u03c1_{i-1}, \u03c1_i) - F(\u03c1_i, \u03c1_{i+1}) + R_i - S_i]",
+          "numerical_flux": "F(u,v) = g(u, \u03c1_max - v)",
+          "kinetic_reactions": "N_{i-1} + S_i \u2192^{\u03ba_{i-1,i}} N_i + S_{i-1}"
+        },
+        "decomposition_types": {
+          "TRM_MAK": {
+            "name": "Mass Action Kinetic decomposition",
+            "flux_formula": "g(\u03c1, \u03bd) = \u03c9\u03c1\u03bd",
+            "parameters": [
+              "omega (\u03c9): reaction rate constant"
+            ],
+            "characteristics": [
+              "Inspired by chemical reaction kinetics",
+              "Bilinear in \u03c1 and \u03bd",
+              "Simple and elegant formulation",
+              "Satisfies monotonicity and Lipschitz continuity"
+            ],
+            "use_cases": [
+              "Theoretical analysis of traffic dynamics",
+              "Studying kinetic interpretation of traffic flow",
+              "Educational purposes"
+            ]
+          },
+          "TRM_GODUNOV": {
+            "name": "Godunov decomposition",
+            "flux_formula": "g(\u03c1, \u03bd) = min(D(\u03c1), Q(\u03c1_max - \u03bd))",
+            "parameters": [
+              "D(\u03c1): demand function",
+              "Q(\u03bd): supply function"
+            ],
+            "characteristics": [
+              "Equivalent to classical Godunov scheme",
+              "Natural supply-demand interpretation",
+              "Widely used in traffic simulation",
+              "Compatible with CTM and Coogan & Arcak 2015"
+            ],
+            "use_cases": [
+              "Highway traffic simulation",
+              "Network traffic optimization",
+              "Comparison with classical CTM models",
+              "Production traffic management systems"
+            ],
+            "note": "TRM with Godunov decomposition is equivalent to CTM with specific input capacity"
+          },
+          "TRM_CAPACITATED": {
+            "name": "Capacitated decomposition",
+            "flux_formula": "g(\u03c1, \u03bd) = D(\u03c1)Q(\u03c1_max - \u03bd)/f_max",
+            "parameters": [
+              "D(\u03c1): demand function",
+              "Q(\u03bd): supply function",
+              "f_max: maximum flux"
+            ],
+            "characteristics": [
+              "Multiplicative coupling of demand and supply",
+              "Smooth variation of flux",
+              "Alternative to min-based decomposition",
+              "Satisfies required mathematical properties"
+            ],
+            "use_cases": [
+              "Smooth traffic flow modeling",
+              "Alternative to discontinuous min function",
+              "Sensitivity analysis and optimization"
+            ]
+          }
+        },
+        "dual_variable_interpretation": {
+          "description": "TRM interprets road segments as compartments with two species",
+          "vehicle_density": "\u03c1_i(t) = N_i(t)/\u0394x (occupied space per unit length)",
+          "free_space_density": "\u03bd_i(t) = S_i(t)/\u0394x = \u03c1_max - \u03c1_i(t)",
+          "conservation": "N_i + S_i = \u03c1_max * \u0394x (constant total capacity)",
+          "kinetic_reaction": "N_{i-1} + S_i \u2192^{\u03ba_{i-1,i}} N_i + S_{i-1}",
+          "reaction_rate": "\u03ba_{i-1,i} = (1/\u0394x) * g(\u03c1_{i-1}, \u03bd_i)",
+          "benefits": [
+            "Enables application of reaction network theory",
+            "Lyapunov stability analysis using entropy functions",
+            "Persistence guarantees (no trajectories reach boundary)",
+            "Connection to chemical reaction network theory"
+          ]
+        },
+        "extended_trm": {
+          "description": "Extended TRM with time-varying capacity drop factors",
+          "capacity_drop": "C_i(t) \u2208 (0, 1] models reduced capacity",
+          "modified_flux": "g(\u03c1, \u03bd) with \u03bd = C_i(t) * \u03c1_max - \u03c1",
+          "applications": [
+            "Traffic incidents reducing capacity",
+            "Construction zones",
+            "Weather conditions (rain, fog, snow)",
+            "Variable speed limits",
+            "Time-of-day lane usage"
+          ],
+          "implementation": "Set capacityDropFactor attribute in supplyFunction"
+        },
+        "network_trm": {
+          "description": "Extension to road networks with junctions",
+          "junction_dynamics": "\u03c1\u0307_i = (1/\u0394x)[\u03a3_k F_k(incoming) - \u03a3_j F_j(outgoing)]",
+          "multi_lane_support": "Multiple incoming and outgoing flows",
+          "compatibility": "Works with existing PP/FIFO junction rules",
+          "routing": "Uses RateFlow with split ratio parameters"
+        },
+        "trm_ctm_equivalence": {
+          "description": "TRM with Godunov decomposition is equivalent to CTM",
+          "equivalence_condition": "Input capacity u^in_i = Q(\u03c1_max - \u03c1_{i-1})",
+          "key_insight": "TRM provides kinetic interpretation of CTM",
+          "practical_impact": "TRM and CTM produce identical simulation results when properly configured"
+        },
+        "stability_analysis": {
+          "description": "TRM inherits stability properties from reaction network theory",
+          "persistence": "All trajectories remain in interior of state space",
+          "lyapunov_functions": "Entropy-like functions from chemical kinetics",
+          "equilibrium_uniqueness": "Unique equilibrium under feasibility conditions",
+          "asymptotic_stability": "Equilibria are asymptotically stable"
+        },
+        "model_structure": {
+          "compartments": {
+            "description": "Road segments as compartments with supplyFunction element",
+            "required_attributes": [
+              "PrimaryName",
+              "population (initial density)",
+              "junctionRule"
+            ],
+            "supply_function_type": "TRM_MAK, TRM_GODUNOV, or TRM_CAPACITATED",
+            "dual_variable_flag": "enableDualVariable=\"true\" for kinetic interpretation"
+          },
+          "parameters": {
+            "description": "TRM-specific parameters",
+            "examples": [
+              "\u03c9: reaction rate constant for MAK",
+              "\u03c1_max: maximum density (jam density)",
+              "\u03c1_crit: critical density",
+              "\u03a6_max: maximum flux",
+              "C_i(t): capacity drop factor",
+              "\u0394x: cell length"
+            ]
+          },
+          "flows": {
+            "description": "Use RateFlow for routing between segments",
+            "split_ratios": "Parameters represent routing coefficients",
+            "junction_rule": "Set junctionRule=\"PPFIFO\" or \"NONE\" for exit cells"
+          }
+        },
+        "examples": {
+          "trm_mak_cell": {
+            "description": "TRM cell with MAK decomposition",
+            "xml": "<compartments PrimaryName=\"Cell1\" population=\"50\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_MAK\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" omega=\"0.001\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.0\" target=\"//@compartments.1\"/>\n</compartments>"
+          },
+          "trm_godunov_cell": {
+            "description": "TRM cell with Godunov decomposition (CTM-equivalent)",
+            "xml": "<compartments PrimaryName=\"Cell2\" population=\"75\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_GODUNOV\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.1\" target=\"//@compartments.2\"/>\n</compartments>"
+          },
+          "extended_trm_cell": {
+            "description": "Extended TRM with capacity drop (incident zone)",
+            "xml": "<compartments PrimaryName=\"IncidentZone\" population=\"120\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_CAPACITATED\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" capacityDropFactor=\"0.6\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.2\" target=\"//@compartments.3\"/>\n</compartments>"
+          }
+        },
+        "backward_compatibility": {
+          "description": "TRM features are fully optional - classical traffic models work unchanged",
+          "classical_traffic": "Use type=\"TRIANGULAR\" without TRM-specific attributes",
+          "trm_models": "Use type=\"TRM_MAK\", \"TRM_GODUNOV\", or \"TRM_CAPACITATED\"",
+          "detection": "Equation generator automatically detects TRM types"
+        },
+        "use_cases": {
+          "trm_applications": [
+            "Highway traffic simulation with kinetic interpretation",
+            "Stability analysis using reaction network theory",
+            "Comparison between different flux decompositions",
+            "Extended TRM for incident modeling",
+            "Network TRM for complex intersections",
+            "Educational: understanding traffic as reactions"
+          ]
+        },
+        "references": [
+          "Pereira, F. L., Figueiredo, J., & Ramos, C. C. (2024). The Traffic Reaction Model: A kinetic compartmental approach to road traffic modeling. Transportation Research Part B, 179, 102871.",
+          "Coogan, S., & Arcak, M. (2015). A Compartmental Model for Traffic Networks and its Dynamical Behavior. IEEE Trans. Automatic Control, 60(10), 2698-2703.",
+          "Daganzo, C. F. (1995). The Cell Transmission Model, Part II: Network Traffic. Transportation Research Part B, 29(2), 79-93."
+        ]
+      },
       "parameter_system": {
         "description": "NEW in Version 2.0: Comprehensive parameter system for symbolic/parametric modeling",
         "features": [
@@ -649,9 +1116,23 @@ METAMODEL:
       }
     },
     "best_practices": {
+      "model_type_selection": {
+        "disease_models": "Use standard compartments with rate-based and contact-based flows. Do not add supplyFunction or set junctionRule.",
+        "traffic_models": "Use compartments with supplyFunction element and junctionRule=\"PPFIFO\". Use parameters for split ratios (\u03b2) and supply/demand function parameters.",
+        "mixed_models": "Not recommended - keep disease and traffic models separate for clarity"
+      },
+      "flow_network_design": [
+        "Define source nodes with isSourceNode=true and maxDemand parameter",
+        "Define constrained nodes with isSourceNode=false and maxDensity, criticalDensity, maxThroughput parameters",
+        "Use RateFlow with routing coefficient parameters (e.g., \u03b2_{lk} for split ratios in traffic) for routing",
+        "Use BirthSource for source node external input/demand (e.g., d_l in traffic)",
+        "Set junctionRule=\"PPFIFO\" for all flow network compartments",
+        "Use Parameters for all network-specific values (allows easy modification and sensitivity analysis)"
+      ],
       "parameter_naming": [
-        "Use Greek symbols for standard epidemiological parameters (\u03b2 for transmission, \u03bc for mortality, \u03b3 for recovery, \u03c1 for progression)",
-        "Use subscripts to distinguish between populations (\u03bc\u2095 for human, \u03bc\u1d65 for vector)",
+        "Disease models: Use Greek symbols (\u03b2 for transmission, \u03bc for mortality, \u03b3 for recovery, \u03c1 for progression)",
+        "Traffic models: Use standard notation (\u03c1 for density, \u03a6 for flow, \u03b2 for split ratio)",
+        "Use subscripts to distinguish entities (\u03bc\u2095 for human, \u03bc\u1d65 for vector, \u03b2_{12} for split ratio link 1\u21922)",
         "Use function notation for dependencies: a(T) for temperature-dependent, \u03b8\u1d65(T,R) for temperature and rainfall",
         "Keep names concise but meaningful"
       ],
@@ -797,8 +1278,8 @@ LLM1 RESPONSE:
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="presymptomatic, isolated">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7"/>
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.8"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="mild to moderate">
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.9"/>
@@ -806,7 +1287,6 @@ LLM1 RESPONSE:
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="severe">
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.10"/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.11"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="severe, isolated">
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.11"/>
@@ -966,8 +1446,8 @@ LLM1'S RESPONSE:
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="presymptomatic, isolated">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7"/>
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.8"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="mild to moderate">
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.9"/>
@@ -975,7 +1455,6 @@ LLM1'S RESPONSE:
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="severe">
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.10"/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.11"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="severe, isolated">
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.11"/>
@@ -1007,274 +1486,311 @@ LLM1'S RESPONSE:
 ```
 ********************************************************************************
 LLM2'S RESPONSE:
+An expert in this domain would recognize that the 'rate' in such a model file typically refers to the total number of individuals transitioning per unit time at the start of the simulation (t=0), calculated using the initial population values. The simulation engine then uses this as a baseline or updates it dynamically. Therefore, I will compute the total flow for each transition by substituting the provided `t=0` population values into the full rate expressions.
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
   <compartments PrimaryName="Susceptible">
     <!--
-     Reasoning for the flow S -> E:
-     1. Identify the flow: The source is 'Susceptible' (S) and the target is compartment 1, 'Exposed' (E).
-     2. Find the formula: The user input table for 'From -> To' specifies the rate for S -> E as 'beta * S * (I_p + I_m + I_s + I_p_iso + I_m_iso + I_s_iso) / N'. This is a contact-based rate.
-     3. Gather values:
-        - beta = 0.00001
-        - S = 14700000
-        - I_p = 3000
-        - I_m = 8000
-        - I_s = 2000
-        - I_p_iso = 1000
-        - I_m_iso = 4000
-        - I_s_iso = 800
-        - N = 14800000
-     4. Calculate the total infectious population (I_total):
-        - I_total = I_p + I_m + I_s + I_p_iso + I_m_iso + I_s_iso
-        - I_total = 3000 + 8000 + 2000 + 1000 + 4000 + 800 = 18800
-     5. Compute the rate:
-        - Rate = beta * S * I_total / N
-        - Rate = 0.00001 * 14700000 * 18800 / 14800000
-        - Rate = 147 * 18800 / 14800000
-        - Rate = 2763600 / 14800000
-        - Rate = 0.18672972972972974
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.18672972972972974" target="//@compartments.1"/>
+REASONING:
+1.  Identify the flow: The source is 'Susceptible' (S) and the target is 'Exposed' (E). This is the main infection flow.
+2.  Find the formula: The user input table defines the rate for S -> E as 'beta * S * (I_p + I_m + I_s + I_p_iso + I_m_iso + I_s_iso) / N'.
+3.  Gather values:
+    - beta = 0.00001
+    - S = 14700000
+    - I_p = 3000
+    - I_m = 8000
+    - I_s = 2000
+    - I_p_iso = 1000
+    - I_m_iso = 4000
+    - I_s_iso = 800
+    - N = 14800000
+4.  Calculate the sum of all infectious populations (Total I):
+    - Total I = 3000 + 8000 + 2000 + 1000 + 4000 + 800 = 18800
+5.  Substitute all values into the formula:
+    - Rate = 0.00001 * 14700000 * (18800) / 14800000
+6.  Perform the calculation:
+    - Rate = 147 * 18800 / 14800000
+    - Rate = 2763600 / 14800000
+    - Rate = 0.18672972972972973
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.18672972972972973" target="//@compartments.1"/>
     <!--
-     Reasoning for the flow S -> E_q:
-     - This flow is from source 'Susceptible' (S) to target compartment 2, 'Exposed quarantined' (E_q).
-     - The user-provided 'Table of Flows with Variables' does not define a flow from S to E_q.
-     - Therefore, the rate for this flow cannot be computed based on the provided information.
-    -->
+REASONING:
+The flow is from Susceptible (S) to Exposed, quarantined (E_q).
+However, the user-provided 'Table of Flows with Variables' does not contain a rate expression for the S -> E_q transition.
+Therefore, this rate cannot be computed.
+-->
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.2"/>
   </compartments>
   <compartments PrimaryName="Exposed">
     <!--
-     Reasoning for the flow E -> I_p:
-     1. Identify the flow: The source is 'Exposed' (E) and the target is compartment 3, 'Infectious presymptomatic' (I_p).
-     2. Find the formula: The user input table specifies the rate expression for E -> I_p as '(1-q) * sigma * E'. The rate to be inserted into the model is the per-capita rate, which is '(1-q) * sigma'.
-     3. Gather values:
-        - q = 0.0
-        - sigma = 0.4
-     4. Compute the rate:
-        - Rate = (1 - 0.0) * 0.4
-        - Rate = 1 * 0.4
-        - Rate = 0.4
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.4" target="//@compartments.3"/>
+REASONING:
+1.  Identify the flow: The source is 'Exposed' (E) and the target is 'Infectious, presymptomatic' (I_p).
+2.  Find the formula: The user input table defines the rate for E -> I_p as '(1-q) * sigma * E'.
+3.  Gather values:
+    - q = 0.0
+    - sigma = 0.4
+    - E (initial population) = 5000
+4.  Substitute values into the formula:
+    - Rate = (1 - 0.0) * 0.4 * 5000
+5.  Perform the calculation:
+    - Rate = 1 * 0.4 * 5000
+    - Rate = 2000.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="2000.0" target="//@compartments.3"/>
   </compartments>
   <compartments PrimaryName="Exposed" SecondaryName="quarantined">
     <!--
-     Reasoning for the flow E_q -> I_p_iso:
-     1. Identify the flow: The source is 'Exposed quarantined' (E_q) and the target is compartment 4, 'Infectious presymptomatic, isolated' (I_p_iso).
-     2. Find the formula: The user input table specifies the rate expression for E_q -> I_p_iso as 'sigma_q * E_q'. The per-capita rate is 'sigma_q'.
-     3. Gather value:
-        - sigma_q = 0.4
-     4. Compute the rate:
-        - Rate = 0.4
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.4" target="//@compartments.4"/>
+REASONING:
+1.  Identify the flow: The source is 'Exposed, quarantined' (E_q) and the target is 'Infectious, presymptomatic, isolated' (I_p_iso).
+2.  Find the formula: The user input table defines the rate for E_q -> I_p_iso as 'sigma_q * E_q'.
+3.  Gather values:
+    - sigma_q = 0.4
+    - E_q (initial population) = 1000
+4.  Substitute values into the formula:
+    - Rate = 0.4 * 1000
+5.  Perform the calculation:
+    - Rate = 400.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="400.0" target="//@compartments.4"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="presymptomatic">
     <!--
-     Reasoning for the flow I_p -> I_m:
-     1. Identify the flow: The source is 'Infectious presymptomatic' (I_p) and the target is compartment 5, 'Infectious mild to moderate' (I_m).
-     2. Find the formula: The user input table specifies the rate expression for I_p -> I_m as 'gamma_p * (1 - p_severe) * I_p'. The per-capita rate is 'gamma_p * (1 - p_severe)'.
-     3. Gather values:
-        - gamma_p = 1.0
-        - p_severe = 0.15
-     4. Compute the rate:
-        - Rate = 1.0 * (1 - 0.15)
-        - Rate = 1.0 * 0.85
-        - Rate = 0.85
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.85" target="//@compartments.5"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, presymptomatic' (I_p) and the target is 'Infectious, mild to moderate' (I_m).
+2.  Find the formula: The user input table defines the rate for I_p -> I_m as 'gamma_p * (1 - p_severe) * I_p'.
+3.  Gather values:
+    - gamma_p = 1.0
+    - p_severe = 0.15
+    - I_p (initial population) = 3000
+4.  Substitute values into the formula:
+    - Rate = 1.0 * (1 - 0.15) * 3000
+5.  Perform the calculation:
+    - Rate = 1.0 * 0.85 * 3000
+    - Rate = 2550.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="2550.0" target="//@compartments.5"/>
     <!--
-     Reasoning for the flow I_p -> I_s:
-     1. Identify the flow: The source is 'Infectious presymptomatic' (I_p) and the target is compartment 6, 'Infectious severe' (I_s).
-     2. Find the formula: The user input table specifies the rate expression for I_p -> I_s as 'gamma_p * p_severe * I_p'. The per-capita rate is 'gamma_p * p_severe'.
-     3. Gather values:
-        - gamma_p = 1.0
-        - p_severe = 0.15
-     4. Compute the rate:
-        - Rate = 1.0 * 0.15
-        - Rate = 0.15
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.15" target="//@compartments.6"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, presymptomatic' (I_p) and the target is 'Infectious, severe' (I_s).
+2.  Find the formula: The user input table defines the rate for I_p -> I_s as 'gamma_p * p_severe * I_p'.
+3.  Gather values:
+    - gamma_p = 1.0
+    - p_severe = 0.15
+    - I_p (initial population) = 3000
+4.  Substitute values into the formula:
+    - Rate = 1.0 * 0.15 * 3000
+5.  Perform the calculation:
+    - Rate = 450.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="450.0" target="//@compartments.6"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="presymptomatic, isolated">
     <!--
-     Reasoning for the flow I_p_iso -> I_s_iso:
-     1. Identify the flow: The source is 'Infectious presymptomatic, isolated' (I_p_iso) and the target is compartment 7, 'Infectious severe, isolated' (I_s_iso).
-     2. Find the formula: The user input table specifies the rate expression for I_p_iso -> I_s_iso as 'gamma_p * p_severe * I_p_iso'. The per-capita rate is 'gamma_p * p_severe'.
-     3. Gather values:
-        - gamma_p = 1.0
-        - p_severe = 0.15
-     4. Compute the rate:
-        - Rate = 1.0 * 0.15
-        - Rate = 0.15
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.15" target="//@compartments.7"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, presymptomatic, isolated' (I_p_iso) and the target is 'Infectious, mild to moderate, isolated' (I_m_iso).
+2.  Find the formula: The user input table defines the rate for I_p_iso -> I_m_iso as 'gamma_p * (1 - p_severe) * I_p_iso'.
+3.  Gather values:
+    - gamma_p = 1.0
+    - p_severe = 0.15
+    - I_p_iso (initial population) = 1000
+4.  Substitute values into the formula:
+    - Rate = 1.0 * (1 - 0.15) * 1000
+5.  Perform the calculation:
+    - Rate = 1.0 * 0.85 * 1000
+    - Rate = 850.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="850.0" target="//@compartments.8"/>
     <!--
-     Reasoning for the flow I_p_iso -> I_m_iso:
-     1. Identify the flow: The source is 'Infectious presymptomatic, isolated' (I_p_iso) and the target is compartment 8, 'Infectious mild to moderate, isolated' (I_m_iso).
-     2. Find the formula: The user input table specifies the rate expression for I_p_iso -> I_m_iso as 'gamma_p * (1 - p_severe) * I_p_iso'. The per-capita rate is 'gamma_p * (1 - p_severe)'.
-     3. Gather values:
-        - gamma_p = 1.0
-        - p_severe = 0.15
-     4. Compute the rate:
-        - Rate = 1.0 * (1 - 0.15)
-        - Rate = 1.0 * 0.85
-        - Rate = 0.85
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.85" target="//@compartments.8"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, presymptomatic, isolated' (I_p_iso) and the target is 'Infectious, severe, isolated' (I_s_iso).
+2.  Find the formula: The user input table defines the rate for I_p_iso -> I_s_iso as 'gamma_p * p_severe * I_p_iso'.
+3.  Gather values:
+    - gamma_p = 1.0
+    - p_severe = 0.15
+    - I_p_iso (initial population) = 1000
+4.  Substitute values into the formula:
+    - Rate = 1.0 * 0.15 * 1000
+5.  Perform the calculation:
+    - Rate = 150.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="150.0" target="//@compartments.7"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="mild to moderate">
     <!--
-     Reasoning for the flow I_m -> I_iso:
-     1. Identify the flow: The source is 'Infectious mild to moderate' (I_m) and the target is compartment 9, 'Isolated' (I_iso).
-     2. Find the formula: The user input table specifies the rate expression for I_m -> I_iso as 'alpha_m * I_m'. The per-capita rate is 'alpha_m'.
-     3. Gather value:
-        - alpha_m = 0.5
-     4. Compute the rate:
-        - Rate = 0.5
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.5" target="//@compartments.9"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, mild to moderate' (I_m) and the target is 'Isolated' (I_iso).
+2.  Find the formula: The user input table defines the rate for I_m -> I_iso as 'alpha_m * I_m'.
+3.  Gather values:
+    - alpha_m = 0.5
+    - I_m (initial population) = 8000
+4.  Substitute values into the formula:
+    - Rate = 0.5 * 8000
+5.  Perform the calculation:
+    - Rate = 4000.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="4000.0" target="//@compartments.9"/>
     <!--
-     Reasoning for the flow I_m -> R:
-     1. Identify the flow: The source is 'Infectious mild to moderate' (I_m) and the target is compartment 14, 'Recovered' (R).
-     2. Find the formula: The user input table specifies the rate expression for I_m -> R as 'gamma_m * I_m'. The per-capita rate is 'gamma_m'.
-     3. Gather value:
-        - gamma_m = 0.167
-     4. Compute the rate:
-        - Rate = 0.167
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.167" target="//@compartments.14"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, mild to moderate' (I_m) and the target is 'Recovered' (R).
+2.  Find the formula: The user input table defines the rate for I_m -> R as 'gamma_m * I_m'.
+3.  Gather values:
+    - gamma_m = 0.167
+    - I_m (initial population) = 8000
+4.  Substitute values into the formula:
+    - Rate = 0.167 * 8000
+5.  Perform the calculation:
+    - Rate = 1336.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="1336.0" target="//@compartments.14"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="severe">
     <!--
-     Reasoning for the flow I_s -> H_pre:
-     1. Identify the flow: The source is 'Infectious severe' (I_s) and the target is compartment 10, 'Admitted to hospital' which corresponds to H_pre.
-     2. Find the formula: The user input table specifies the rate expression for I_s -> H_pre as 'gamma_s * I_s'. The per-capita rate is 'gamma_s'.
-     3. Gather value:
-        - gamma_s = 0.167
-     4. Compute the rate:
-        - Rate = 0.167
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.167" target="//@compartments.10"/>
-    <!--
-     Reasoning for the flow I_s -> H_pre:
-     1. Identify the flow: The source is 'Infectious severe' (I_s) and the target is compartment 11, 'Admitted to hospital, pre-ICU', which corresponds to H_pre.
-     2. Find the formula: The user input table specifies the rate expression for I_s -> H_pre as 'gamma_s * I_s'. The per-capita rate is 'gamma_s'. This appears to be a duplicate flow in the XML to the same logical compartment.
-     3. Gather value:
-        - gamma_s = 0.167
-     4. Compute the rate:
-        - Rate = 0.167
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.167" target="//@compartments.11"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, severe' (I_s) and the target is 'Admitted to hospital, pre-ICU' (H_pre).
+2.  Find the formula: The user input table defines the rate for I_s -> H_pre as 'gamma_s * I_s'.
+3.  Gather values:
+    - gamma_s = 0.167
+    - I_s (initial population) = 2000
+4.  Substitute values into the formula:
+    - Rate = 0.167 * 2000
+5.  Perform the calculation:
+    - Rate = 334.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="334.0" target="//@compartments.10"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="severe, isolated">
     <!--
-     Reasoning for the flow I_s_iso -> H_pre:
-     1. Identify the flow: The source is 'Infectious severe, isolated' (I_s_iso) and the target is compartment 11, 'Admitted to hospital, pre-ICU' (H_pre).
-     2. Find the formula: The user input table specifies the rate expression for I_s_iso -> H_pre as 'gamma_s * I_s_iso'. The per-capita rate is 'gamma_s'.
-     3. Gather value:
-        - gamma_s = 0.167
-     4. Compute the rate:
-        - Rate = 0.167
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.167" target="//@compartments.11"/>
+REASONING:
+1.  Identify the flow: The source is 'Infectious, severe, isolated' (I_s_iso) and the target is 'Admitted to hospital, pre-ICU' (H_pre).
+2.  Find the formula: The user input table defines the rate for I_s_iso -> H_pre as 'gamma_s * I_s_iso'.
+3.  Gather values:
+    - gamma_s = 0.167
+    - I_s_iso (initial population) = 800
+4.  Substitute values into the formula:
+    - Rate = 0.167 * 800
+5.  Perform the calculation:
+    - Rate = 133.6
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="133.6" target="//@compartments.11"/>
   </compartments>
   <compartments PrimaryName="Infectious" SecondaryName="mild to moderate, isolated">
     <!--
-     Reasoning for the flow I_m_iso -> R:
-     - This flow is from source 'Infectious mild to moderate, isolated' (I_m_iso) to target compartment 14, 'Recovered' (R).
-     - The user-provided 'Table of Flows with Variables' does not define a flow from I_m_iso to R. It defines a flow from I_m_iso to I_iso.
-     - Therefore, the rate for this specific flow (I_m_iso -> R) cannot be computed based on the provided information due to a mismatch between the XML structure and the flow definitions.
-    -->
+REASONING:
+The flow is from 'Infectious, mild to moderate, isolated' (I_m_iso) to 'Recovered' (R).
+However, the user-provided 'Table of Flows with Variables' does not contain a rate expression for the I_m_iso -> R transition. The table only specifies a flow from I_m_iso -> I_iso.
+Therefore, this rate cannot be computed.
+-->
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.14"/>
   </compartments>
   <compartments PrimaryName="Isolated">
     <!--
-     Reasoning for the flow I_iso -> R:
-     1. Identify the flow: The source is 'Isolated' (I_iso) and the target is compartment 14, 'Recovered' (R).
-     2. Find the formula: The user input table specifies the rate expression for I_iso -> R as 'gamma_iso * I_iso'. The per-capita rate is 'gamma_iso'.
-     3. Gather value:
-        - gamma_iso = 0.167
-     4. Compute the rate:
-        - Rate = 0.167
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.167" target="//@compartments.14"/>
+REASONING:
+1.  Identify the flow: The source is 'Isolated' (I_iso) and the target is 'Recovered' (R).
+2.  Find the formula: The user input table defines the rate for I_iso -> R as 'gamma_iso * I_iso'.
+3.  Gather values:
+    - gamma_iso = 0.167
+    - I_iso (initial population) = 6000
+4.  Substitute values into the formula:
+    - Rate = 0.167 * 6000
+5.  Perform the calculation:
+    - Rate = 1002.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="1002.0" target="//@compartments.14"/>
   </compartments>
   <compartments PrimaryName="Admitted to hospital">
     <!--
-     Reasoning for the flow H_pre -> ICU:
-     1. Identify the flow: The source is 'Admitted to hospital' (H_pre) and the target is compartment 12, 'ICU'.
-     2. Find the formula: The user input table specifies the rate expression for H_pre -> ICU as 'gamma_h_icu * H_pre'. The per-capita rate is 'gamma_h_icu'.
-     3. Gather value:
-        - gamma_h_icu = 0.26
-     4. Compute the rate:
-        - Rate = 0.26
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.26" target="//@compartments.12"/>
+REASONING:
+1.  Identify the flow: The source is 'Admitted to hospital' (interpreted as H_pre) and the target is 'ICU'.
+2.  Find the formula: The user input table defines the rate for H_pre -> ICU as 'gamma_h_icu * H_pre'.
+3.  Gather values:
+    - gamma_h_icu = 0.26
+    - H_pre (initial population) = 1500
+4.  Substitute values into the formula:
+    - Rate = 0.26 * 1500
+5.  Perform the calculation:
+    - Rate = 390.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="390.0" target="//@compartments.12"/>
     <!--
-     Reasoning for the flow H_pre -> R:
-     1. Identify the flow: The source is 'Admitted to hospital' (H_pre) and the target is compartment 14, 'Recovered' (R).
-     2. Find the formula: The user input table specifies the rate expression for H_pre -> R as 'gamma_h_r * H_pre'. The per-capita rate is 'gamma_h_r'.
-     3. Gather value:
-        - gamma_h_r = 0.74
-     4. Compute the rate:
-        - Rate = 0.74
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.74" target="//@compartments.14"/>
+REASONING:
+1.  Identify the flow: The source is 'Admitted to hospital' (interpreted as H_pre) and the target is 'Recovered' (R).
+2.  Find the formula: The user input table defines the rate for H_pre -> R as 'gamma_h_r * H_pre'.
+3.  Gather values:
+    - gamma_h_r = 0.74
+    - H_pre (initial population) = 1500
+4.  Substitute values into the formula:
+    - Rate = 0.74 * 1500
+5.  Perform the calculation:
+    - Rate = 1110.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="1110.0" target="//@compartments.14"/>
   </compartments>
   <compartments PrimaryName="Admitted to hospital" SecondaryName="pre-ICU">
     <!--
-     Reasoning for the flow H_pre -> ICU:
-     1. Identify the flow: The source is 'Admitted to hospital, pre-ICU' (H_pre) and the target is compartment 12, 'ICU'.
-     2. Find the formula: The user input table specifies the rate expression for H_pre -> ICU as 'gamma_h_icu * H_pre'. The per-capita rate is 'gamma_h_icu'. This compartment appears to be a duplicate of the previous 'Admitted to hospital' compartment in the XML.
-     3. Gather value:
-        - gamma_h_icu = 0.26
-     4. Compute the rate:
-        - Rate = 0.26
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.26" target="//@compartments.12"/>
+REASONING:
+1.  Identify the flow: The source is 'Admitted to hospital, pre-ICU' (H_pre) and the target is 'ICU'.
+2.  Find the formula: The user input table defines the rate for H_pre -> ICU as 'gamma_h_icu * H_pre'.
+3.  Gather values:
+    - gamma_h_icu = 0.26
+    - H_pre (initial population) = 1500
+4.  Substitute values into the formula:
+    - Rate = 0.26 * 1500
+5.  Perform the calculation:
+    - Rate = 390.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="390.0" target="//@compartments.12"/>
   </compartments>
   <compartments PrimaryName="ICU">
     <!--
-     Reasoning for the flow ICU -> H_post:
-     1. Identify the flow: The source is 'ICU' and the target is compartment 13, 'Admitted to hospital, post-ICU' (H_post).
-     2. Find the formula: The user input table specifies the rate expression for ICU -> H_post as 'gamma_icu_post * ICU'. The per-capita rate is 'gamma_icu_post'.
-     3. Gather value:
-        - gamma_icu_post = 0.6
-     4. Compute the rate:
-        - Rate = 0.6
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.6" target="//@compartments.13"/>
+REASONING:
+1.  Identify the flow: The source is 'ICU' and the target is 'Admitted to hospital, post-ICU' (H_post).
+2.  Find the formula: The user input table defines the rate for ICU -> H_post as 'gamma_icu_post * ICU'.
+3.  Gather values:
+    - gamma_icu_post = 0.6
+    - ICU (initial population) = 400
+4.  Substitute values into the formula:
+    - Rate = 0.6 * 400
+5.  Perform the calculation:
+    - Rate = 240.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="240.0" target="//@compartments.13"/>
     <!--
-     Reasoning for the flow ICU -> D:
-     1. Identify the flow: The source is 'ICU' and the target is compartment 15, 'Dead' (D).
-     2. Find the formula: The user input table specifies the rate expression for ICU -> D as 'mu_icu * ICU'. The per-capita rate is 'mu_icu'.
-     3. Gather value:
-        - mu_icu = 0.4
-     4. Compute the rate:
-        - Rate = 0.4
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.4" target="//@compartments.15"/>
+REASONING:
+1.  Identify the flow: The source is 'ICU' and the target is 'Dead' (D).
+2.  Find the formula: The user input table defines the rate for ICU -> D as 'mu_icu * ICU'.
+3.  Gather values:
+    - mu_icu = 0.4
+    - ICU (initial population) = 400
+4.  Substitute values into the formula:
+    - Rate = 0.4 * 400
+5.  Perform the calculation:
+    - Rate = 160.0
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="160.0" target="//@compartments.15"/>
   </compartments>
   <compartments PrimaryName="Admitted to hospital" SecondaryName="post-ICU">
     <!--
-     Reasoning for the flow H_post -> R:
-     1. Identify the flow: The source is 'Admitted to hospital, post-ICU' (H_post) and the target is compartment 14, 'Recovered' (R).
-     2. Find the formula: The user input table specifies the rate expression for H_post -> R as 'gamma_post * H_post'. The per-capita rate is 'gamma_post'.
-     3. Gather value:
-        - gamma_post = 0.048
-     4. Compute the rate:
-        - Rate = 0.048
-    -->
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.048" target="//@compartments.14"/>
+REASONING:
+1.  Identify the flow: The source is 'Admitted to hospital, post-ICU' (H_post) and the target is 'Recovered' (R).
+2.  Find the formula: The user input table defines the rate for H_post -> R as 'gamma_post * H_post'.
+3.  Gather values:
+    - gamma_post = 0.048
+    - H_post (initial population) = 200
+4.  Substitute values into the formula:
+    - Rate = 0.048 * 200
+5.  Perform the calculation:
+    - Rate = 9.6
+-->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="9.6" target="//@compartments.14"/>
     <!--
-     Reasoning for the flow H_post -> D:
-     - This flow is from source 'Admitted to hospital, post-ICU' (H_post) to target compartment 15, 'Dead' (D).
-     - The user-provided 'Table of Flows with Variables' does not define a flow from H_post to D.
-     - Therefore, the rate for this flow cannot be computed based on the provided information.
-    -->
+REASONING:
+The flow is from 'Admitted to hospital, post-ICU' (H_post) to 'Dead' (D).
+However, the user-provided 'Table of Flows with Variables' does not contain a rate expression for the H_post -> D transition.
+Therefore, this rate cannot be computed.
+-->
     <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.15"/>
   </compartments>
   <compartments PrimaryName="Recovered"/>

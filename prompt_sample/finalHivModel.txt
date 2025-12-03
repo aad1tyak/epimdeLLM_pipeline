@@ -21,15 +21,9 @@ Output:
 ********************************************************************************
 METAMODEL:
 {
-  "compartmental_metamodel": {
-    "version": "3.1",
-    "description": "EpiMDE Compartmental Metamodel - Unified framework for epidemiological models, classical traffic networks, and Traffic Reaction Model (TRM) with parametric (symbolic) modeling support",
-    "changelog": {
-      "3.1": "Added Traffic Reaction Model (TRM) support with flux decomposition, dual variable tracking, and kinetic interpretation. New decomposition types: TRM_MAK, TRM_GODUNOV, TRM_CAPACITATED. Extended TRM with capacity drop factors. Fully backward compatible.",
-      "3.0": "Added traffic network modeling with supply-demand dynamics, PP/FIFO junction rules, and triangular fundamental diagram support. Fully backward compatible with disease models.",
-      "2.0": "Added comprehensive parameter system for symbolic/parametric modeling with Unicode support",
-      "1.0": "Initial SEIR/epidemiological metamodel"
-    },
+  "seirmodel_metamodel": {
+    "version": "2.0",
+    "description": "EpiMDE Metamodel - Supports both numeric and parametric (symbolic) modeling approaches for epidemiological compartmental models",
     "structure": {
       "xml_declaration": {
         "version": "1.0",
@@ -148,141 +142,13 @@ METAMODEL:
         "optional_attributes": [
           "SecondaryName",
           "population",
-          "product",
-          "junctionRule"
+          "product"
         ],
         "child_elements": [
-          "outgoingFlows",
-          "supplyFunction"
+          "outgoingFlows"
         ],
         "constraints": {
-          "product": "Reference to product using format '//@products.X'",
-          "junctionRule": "Optional. For traffic models use PPFIFO. For disease models use NONE (default)."
-        },
-        "attributes": {
-          "PrimaryName": {
-            "description": "Main identifier for the compartment",
-            "examples": [
-              "Susceptible",
-              "Exposed",
-              "Infectious",
-              "Onramp1",
-              "Link2"
-            ]
-          },
-          "SecondaryName": {
-            "description": "Additional descriptor for stratification or link type",
-            "examples": [
-              "Adults",
-              "Children",
-              "Ordinary",
-              "Onramp"
-            ]
-          },
-          "population": {
-            "description": "Initial population count (disease models) or initial density (traffic models)",
-            "constraint": "Must be float/decimal value"
-          },
-          "junctionRule": {
-            "description": "Junction rule type for traffic models. NONE for disease models (default), PPFIFO for traffic networks.",
-            "values": [
-              "NONE",
-              "PPFIFO",
-              "CUSTOM"
-            ],
-            "default": "NONE"
-          }
-        }
-      },
-      "supplyFunction": {
-        "element": "supplyFunction",
-        "required_attributes": [
-          "type"
-        ],
-        "optional_attributes": [
-          "isSourceNode",
-          "maxDensity",
-          "criticalDensity",
-          "maxThroughput",
-          "maxDemand",
-          "omega",
-          "capacityDropFactor",
-          "enableDualVariable"
-        ],
-        "description": "Flow network supply and demand functions based on capacity constraints. Supports classical traffic models (Coogan & Arcak 2015) and Traffic Reaction Model (TRM) with kinetic decompositions (Pereira et al. 2024). Generalizable to traffic networks, queue systems, pipeline networks, etc. Only present for flow-constrained models. Disease models do not have this element.",
-        "attributes": {
-          "type": {
-            "description": "Type of supply/demand function",
-            "values": [
-              "NONE",
-              "TRIANGULAR",
-              "LINEAR",
-              "CUSTOM",
-              "TRM_MAK",
-              "TRM_GODUNOV",
-              "TRM_CAPACITATED"
-            ],
-            "default": "NONE"
-          },
-          "isSourceNode": {
-            "description": "Boolean indicating if this is a source/entry node with external input (true) or constrained internal node (false)",
-            "values": [
-              "true",
-              "false"
-            ],
-            "default": "false",
-            "examples": [
-              "Onramps in traffic, generators in systems, entry queues in networks"
-            ]
-          },
-          "maxDensity": {
-            "description": "Maximum density/capacity - saturation point (constrained nodes only)",
-            "unit": "entities/space",
-            "traffic_example": "\u03c1^jam - vehicles per length when stopped"
-          },
-          "criticalDensity": {
-            "description": "Critical density/threshold - point of maximum throughput (constrained nodes only)",
-            "unit": "entities/space",
-            "traffic_example": "\u03c1^crit - density at maximum flow"
-          },
-          "maxThroughput": {
-            "description": "Maximum throughput/capacity - max flow rate (constrained nodes only)",
-            "unit": "entities/time",
-            "traffic_example": "\u03a6^crit - vehicles per hour"
-          },
-          "maxDemand": {
-            "description": "Maximum demand/output rate - upper bound on outflow (source nodes only)",
-            "unit": "entities/time",
-            "traffic_example": "\u03a6^max - max vehicles per hour from onramp"
-          },
-          "omega": {
-            "description": "Reaction rate constant \u03c9 for TRM_MAK (Mass Action Kinetic) decomposition. Used in flux g(\u03c1,\u03bd) = \u03c9\u03c1\u03bd where \u03bd = \u03c1_max - \u03c1 (TRM models only)",
-            "unit": "1/(entities\u00b7time)",
-            "trm_example": "\u03c9 = 0.001 for MAK decomposition",
-            "default": "0.0"
-          },
-          "capacityDropFactor": {
-            "description": "Time-varying capacity drop factor C_i(t) for Extended TRM models. Enables modeling of changing traffic conditions (incidents, construction, weather). Value in range (0, 1] where 1 = normal capacity (TRM models only)",
-            "unit": "dimensionless",
-            "trm_example": "0.75 represents 25% capacity reduction",
-            "default": "1.0"
-          },
-          "enableDualVariable": {
-            "description": "Boolean flag to enable dual variable tracking: \u03c1 (vehicle density) and \u03bd (free space density) where \u03bd = \u03c1_max - \u03c1. Enables kinetic/compartmental interpretation of TRM (TRM models only)",
-            "values": [
-              "true",
-              "false"
-            ],
-            "default": "false",
-            "note": "When true, simulation tracks both occupied space N_i and free space S_i"
-          }
-        },
-        "examples": {
-          "source_node": "<supplyFunction type=\"TRIANGULAR\" isSourceNode=\"true\" maxDemand=\"3000\"/>",
-          "constrained_node": "<supplyFunction type=\"TRIANGULAR\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\"/>",
-          "trm_mak_node": "<supplyFunction type=\"TRM_MAK\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" omega=\"0.001\" enableDualVariable=\"true\"/>",
-          "trm_godunov_node": "<supplyFunction type=\"TRM_GODUNOV\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" enableDualVariable=\"true\"/>",
-          "extended_trm_node": "<supplyFunction type=\"TRM_CAPACITATED\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" capacityDropFactor=\"0.8\" enableDualVariable=\"true\"/>"
+          "product": "Reference to product using format '//@products.X'"
         }
       },
       "outgoingFlows": {
@@ -527,15 +393,6 @@ METAMODEL:
       }
     },
     "compartment_types": {
-      "traffic_components": [
-        "Onramp",
-        "Link",
-        "Ordinary Link",
-        "Highway Link",
-        "Road Segment",
-        "Junction",
-        "Merge Point"
-      ],
       "epidemiological_states": [
         "Susceptible",
         "Exposed",
@@ -697,333 +554,9 @@ METAMODEL:
       "stratum_validation": "stratumSpecificRates stratum values must match the values defined in the referenced Group",
       "population_balance": "BirthSources and DeathSinks help maintain population balance in the model",
       "description": "Even though description is optional, it would be very helpful if each flow has a brief description explaining the purpose of this flow.",
-      "unicode_support": "Parameter names support Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)",
-      "flow_network_validation": {
-        "supply_function_required": "Flow-constrained compartments must have a supplyFunction element",
-        "junction_rule_required": "Flow network compartments must set junctionRule=\"PPFIFO\" or \"CUSTOM\"",
-        "source_node_attributes": "Source nodes (isSourceNode=true) must specify maxDemand but not maxDensity/criticalDensity/maxThroughput",
-        "constrained_node_attributes": "Constrained nodes (isSourceNode=false) must specify maxDensity, criticalDensity, maxThroughput but not maxDemand",
-        "split_ratios": "Outgoing flows from network compartments should use RateFlow with parameters representing split ratios/routing coefficients",
-        "source_node_input": "Source nodes should have a BirthSource with rateParameter for external input/demand",
-        "consistency": "All compartments in a model should be either all flow-network (with supplyFunction) or all disease (without supplyFunction)"
-      },
-      "trm_validation": {
-        "trm_type_validation": "TRM compartments must use type=\"TRM_MAK\", \"TRM_GODUNOV\", or \"TRM_CAPACITATED\"",
-        "trm_mak_omega": "TRM_MAK type requires omega attribute to be specified (reaction rate constant \u03c9)",
-        "omega_positive": "omega must be positive: \u03c9 > 0",
-        "capacity_drop_range": "capacityDropFactor must be in range (0, 1]: 0 < C_i(t) \u2264 1",
-        "dual_variable_flag": "enableDualVariable=\"true\" recommended for TRM models to track both \u03c1 and \u03bd = \u03c1_max - \u03c1",
-        "trm_base_attributes": "All TRM compartments must specify maxDensity (\u03c1_max), criticalDensity (\u03c1_crit), and maxThroughput (\u03a6_max)",
-        "extended_trm_capacity": "Extended TRM models with capacityDropFactor should use values < 1.0 to model reduced capacity scenarios",
-        "trm_compatibility": "TRM models are compatible with classical traffic models - can mix TRIANGULAR and TRM types in same network",
-        "godunov_equivalence": "TRM_GODUNOV with proper configuration is equivalent to Cell Transmission Model (CTM)"
-      }
+      "unicode_support": "Parameter names support Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)"
     },
     "model_extensions": {
-      "traffic_networks": {
-        "description": "NEW in Version 3.0: Traffic network modeling with supply-demand dynamics and PP/FIFO junction rules",
-        "features": [
-          "Supply and demand functions for road links (triangular fundamental diagram)",
-          "PP/FIFO (Proportional Priority, First-In-First-Out) junction rules",
-          "Onramps as unbounded queues with max demand",
-          "Ordinary links with capacity constraints",
-          "Non-cooperative dynamics for traffic optimization",
-          "Backward compatible with disease models"
-        ],
-        "components": {
-          "SupplyFunction": {
-            "description": "Defines traffic flow characteristics based on vehicle density",
-            "types": {
-              "TRIANGULAR": "Standard traffic model (Daganzo 1994, Coogan & Arcak 2015)",
-              "LINEAR": "Simplified linear flow model",
-              "CUSTOM": "User-defined supply/demand functions",
-              "NONE": "No supply function (disease models)"
-            },
-            "source_nodes": {
-              "description": "Entry points with unbounded storage (e.g., onramps in traffic, generators in systems)",
-              "demand": "\u03a6^out(\u03c1) = min(max(\u03c1, maxDemand), maxDemand)",
-              "supply": "\u03a6^in(\u03c1) = \u221e",
-              "attributes": [
-                "type",
-                "isSourceNode=true",
-                "maxDemand"
-              ]
-            },
-            "constrained_nodes": {
-              "description": "Internal nodes with capacity constraints (e.g., road segments in traffic, pipes in flow networks)",
-              "demand": "\u03a6^out(\u03c1) = min((maxThroughput/criticalDensity)*\u03c1, maxThroughput) for \u03c1 \u2264 criticalDensity; maxThroughput for \u03c1 > criticalDensity",
-              "supply": "\u03a6^in(\u03c1) = maxThroughput for \u03c1 \u2264 criticalDensity; (maxThroughput/(maxDensity-criticalDensity))*(maxDensity-\u03c1) for \u03c1 > criticalDensity",
-              "attributes": [
-                "type",
-                "isSourceNode=false",
-                "maxDensity",
-                "criticalDensity",
-                "maxThroughput"
-              ]
-            }
-          },
-          "JunctionRule": {
-            "description": "Specifies how flows are computed at network junctions",
-            "types": {
-              "NONE": "No junction constraints (disease models - default)",
-              "PPFIFO": "Proportional Priority, First-In-First-Out (traffic networks)",
-              "CUSTOM": "User-defined junction rules"
-            },
-            "ppfifo_rule": {
-              "description": "\u03b1_v(\u03c1) = max{\u03b1 \u2208 [0,1] : \u03b1 \u03a3_{j\u2208incoming} \u03b2_{jk} \u03a6^out_j(\u03c1_j) \u2264 \u03a6^in_k(\u03c1_k) \u2200k\u2208outgoing}",
-              "computation": "At each time step, compute \u03b1 that satisfies downstream supply constraints",
-              "output_flow": "f^out_l(\u03c1) = \u03b1_v(\u03c1) * \u03a6^out_l(\u03c1_l) for all incoming links"
-            }
-          }
-        },
-        "dynamics": {
-          "disease_models": {
-            "description": "Standard rate-based and contact-based flows (unchanged)",
-            "equations": [
-              "dS/dt = -\u03b2*S*I (Contact flow)",
-              "dI/dt = \u03b2*S*I - \u03b3*I (Rate flow)",
-              "dR/dt = \u03b3*I (Rate flow)"
-            ]
-          },
-          "traffic_models": {
-            "description": "Supply-demand constrained flows with PP/FIFO",
-            "equations": [
-              "Onramps: d\u03c1_l/dt = d_l - f^out_l(\u03c1)",
-              "Ordinary: d\u03c1_l/dt = f^in_l(\u03c1) - f^out_l(\u03c1)"
-            ],
-            "note": "f^out and f^in computed via PP/FIFO rule with supply-demand constraints"
-          }
-        },
-        "backward_compatibility": {
-          "description": "Traffic features are fully optional - disease models work unchanged",
-          "disease_models": "Leave supplyFunction absent and junctionRule=NONE (default)",
-          "traffic_models": "Add supplyFunction element and set junctionRule=PPFIFO",
-          "detection": "Presence of supplyFunction element indicates traffic model"
-        },
-        "use_cases": {
-          "traffic_networks": [
-            "Highway traffic flow optimization",
-            "Ramp metering control",
-            "Congestion analysis",
-            "Network throughput optimization"
-          ],
-          "disease_models": [
-            "Epidemiological compartmental models (SEIR, SIR, etc.)",
-            "Vector-borne disease transmission",
-            "Age-stratified disease models",
-            "Multi-pathogen models"
-          ]
-        },
-        "examples": {
-          "source_node_traffic": {
-            "description": "Source node (onramp) with max demand 3000 vehicles/hour",
-            "xml": "<compartments PrimaryName=\"Onramp1\" population=\"0\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRIANGULAR\" isSourceNode=\"true\" maxDemand=\"3000\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.0\" target=\"//@compartments.1\"/>\n</compartments>"
-          },
-          "constrained_node_traffic": {
-            "description": "Constrained node (road link) with capacity constraints",
-            "xml": "<compartments PrimaryName=\"Link2\" population=\"37.5\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRIANGULAR\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.1\" target=\"//@compartments.2\"/>\n</compartments>"
-          },
-          "disease_compartment": {
-            "description": "Disease compartment (unchanged - no flow network features)",
-            "xml": "<compartments PrimaryName=\"Susceptible\" population=\"1000\">\n  <outgoingFlows xsi:type=\"seir:ContactFlow\" contactRateParameter=\"//@parameters.0\" contactCompartment=\"//@compartments.1\" target=\"//@compartments.1\"/>\n</compartments>"
-          }
-        },
-        "references": [
-          "Coogan, S., & Arcak, M. (2015). A Compartmental Model for Traffic Networks and its Dynamical Behavior. IEEE Trans. Automatic Control, 60(10), 2698-2703.",
-          "Daganzo, C. F. (1994). The Cell Transmission Model: A Dynamic Representation of Highway Traffic. Transportation Research Part B, 28(4), 269-287."
-        ]
-      },
-      "traffic_reaction_model": {
-        "description": "NEW in Version 3.1: Traffic Reaction Model (TRM) - A kinetic compartmental approach to road traffic modeling with flux decomposition and dual variable tracking (Pereira et al. 2024)",
-        "features": [
-          "Flux decomposition: f(\u03c1) = g(\u03c1, \u03c1_max - \u03c1) using dual variables",
-          "Dual variable tracking: \u03c1 (vehicle density) and \u03bd (free space density)",
-          "Kinetic interpretation: traffic as chemical reactions between compartments",
-          "Multiple decomposition types: MAK, Godunov, Capacitated",
-          "TRM-CTM equivalence: TRM is equivalent to Cell Transmission Model",
-          "Extended TRM: Time-varying capacity drop factors C_i(t)",
-          "Network TRM: Multi-lane intersections with incoming/outgoing flows",
-          "Fully backward compatible with classical traffic models"
-        ],
-        "mathematical_foundation": {
-          "lwr_model": "\u2202_t \u03c1 + \u2202_x f(\u03c1) = r - s (Lighthill-Whitham-Richards)",
-          "flux_decomposition": "f(\u03c1) = g(\u03c1, \u03bd) where \u03bd = \u03c1_max - \u03c1",
-          "trm_discretization": "\u03c1\u0307_i = (1/\u0394x)[F(\u03c1_{i-1}, \u03c1_i) - F(\u03c1_i, \u03c1_{i+1}) + R_i - S_i]",
-          "numerical_flux": "F(u,v) = g(u, \u03c1_max - v)",
-          "kinetic_reactions": "N_{i-1} + S_i \u2192^{\u03ba_{i-1,i}} N_i + S_{i-1}"
-        },
-        "decomposition_types": {
-          "TRM_MAK": {
-            "name": "Mass Action Kinetic decomposition",
-            "flux_formula": "g(\u03c1, \u03bd) = \u03c9\u03c1\u03bd",
-            "parameters": [
-              "omega (\u03c9): reaction rate constant"
-            ],
-            "characteristics": [
-              "Inspired by chemical reaction kinetics",
-              "Bilinear in \u03c1 and \u03bd",
-              "Simple and elegant formulation",
-              "Satisfies monotonicity and Lipschitz continuity"
-            ],
-            "use_cases": [
-              "Theoretical analysis of traffic dynamics",
-              "Studying kinetic interpretation of traffic flow",
-              "Educational purposes"
-            ]
-          },
-          "TRM_GODUNOV": {
-            "name": "Godunov decomposition",
-            "flux_formula": "g(\u03c1, \u03bd) = min(D(\u03c1), Q(\u03c1_max - \u03bd))",
-            "parameters": [
-              "D(\u03c1): demand function",
-              "Q(\u03bd): supply function"
-            ],
-            "characteristics": [
-              "Equivalent to classical Godunov scheme",
-              "Natural supply-demand interpretation",
-              "Widely used in traffic simulation",
-              "Compatible with CTM and Coogan & Arcak 2015"
-            ],
-            "use_cases": [
-              "Highway traffic simulation",
-              "Network traffic optimization",
-              "Comparison with classical CTM models",
-              "Production traffic management systems"
-            ],
-            "note": "TRM with Godunov decomposition is equivalent to CTM with specific input capacity"
-          },
-          "TRM_CAPACITATED": {
-            "name": "Capacitated decomposition",
-            "flux_formula": "g(\u03c1, \u03bd) = D(\u03c1)Q(\u03c1_max - \u03bd)/f_max",
-            "parameters": [
-              "D(\u03c1): demand function",
-              "Q(\u03bd): supply function",
-              "f_max: maximum flux"
-            ],
-            "characteristics": [
-              "Multiplicative coupling of demand and supply",
-              "Smooth variation of flux",
-              "Alternative to min-based decomposition",
-              "Satisfies required mathematical properties"
-            ],
-            "use_cases": [
-              "Smooth traffic flow modeling",
-              "Alternative to discontinuous min function",
-              "Sensitivity analysis and optimization"
-            ]
-          }
-        },
-        "dual_variable_interpretation": {
-          "description": "TRM interprets road segments as compartments with two species",
-          "vehicle_density": "\u03c1_i(t) = N_i(t)/\u0394x (occupied space per unit length)",
-          "free_space_density": "\u03bd_i(t) = S_i(t)/\u0394x = \u03c1_max - \u03c1_i(t)",
-          "conservation": "N_i + S_i = \u03c1_max * \u0394x (constant total capacity)",
-          "kinetic_reaction": "N_{i-1} + S_i \u2192^{\u03ba_{i-1,i}} N_i + S_{i-1}",
-          "reaction_rate": "\u03ba_{i-1,i} = (1/\u0394x) * g(\u03c1_{i-1}, \u03bd_i)",
-          "benefits": [
-            "Enables application of reaction network theory",
-            "Lyapunov stability analysis using entropy functions",
-            "Persistence guarantees (no trajectories reach boundary)",
-            "Connection to chemical reaction network theory"
-          ]
-        },
-        "extended_trm": {
-          "description": "Extended TRM with time-varying capacity drop factors",
-          "capacity_drop": "C_i(t) \u2208 (0, 1] models reduced capacity",
-          "modified_flux": "g(\u03c1, \u03bd) with \u03bd = C_i(t) * \u03c1_max - \u03c1",
-          "applications": [
-            "Traffic incidents reducing capacity",
-            "Construction zones",
-            "Weather conditions (rain, fog, snow)",
-            "Variable speed limits",
-            "Time-of-day lane usage"
-          ],
-          "implementation": "Set capacityDropFactor attribute in supplyFunction"
-        },
-        "network_trm": {
-          "description": "Extension to road networks with junctions",
-          "junction_dynamics": "\u03c1\u0307_i = (1/\u0394x)[\u03a3_k F_k(incoming) - \u03a3_j F_j(outgoing)]",
-          "multi_lane_support": "Multiple incoming and outgoing flows",
-          "compatibility": "Works with existing PP/FIFO junction rules",
-          "routing": "Uses RateFlow with split ratio parameters"
-        },
-        "trm_ctm_equivalence": {
-          "description": "TRM with Godunov decomposition is equivalent to CTM",
-          "equivalence_condition": "Input capacity u^in_i = Q(\u03c1_max - \u03c1_{i-1})",
-          "key_insight": "TRM provides kinetic interpretation of CTM",
-          "practical_impact": "TRM and CTM produce identical simulation results when properly configured"
-        },
-        "stability_analysis": {
-          "description": "TRM inherits stability properties from reaction network theory",
-          "persistence": "All trajectories remain in interior of state space",
-          "lyapunov_functions": "Entropy-like functions from chemical kinetics",
-          "equilibrium_uniqueness": "Unique equilibrium under feasibility conditions",
-          "asymptotic_stability": "Equilibria are asymptotically stable"
-        },
-        "model_structure": {
-          "compartments": {
-            "description": "Road segments as compartments with supplyFunction element",
-            "required_attributes": [
-              "PrimaryName",
-              "population (initial density)",
-              "junctionRule"
-            ],
-            "supply_function_type": "TRM_MAK, TRM_GODUNOV, or TRM_CAPACITATED",
-            "dual_variable_flag": "enableDualVariable=\"true\" for kinetic interpretation"
-          },
-          "parameters": {
-            "description": "TRM-specific parameters",
-            "examples": [
-              "\u03c9: reaction rate constant for MAK",
-              "\u03c1_max: maximum density (jam density)",
-              "\u03c1_crit: critical density",
-              "\u03a6_max: maximum flux",
-              "C_i(t): capacity drop factor",
-              "\u0394x: cell length"
-            ]
-          },
-          "flows": {
-            "description": "Use RateFlow for routing between segments",
-            "split_ratios": "Parameters represent routing coefficients",
-            "junction_rule": "Set junctionRule=\"PPFIFO\" or \"NONE\" for exit cells"
-          }
-        },
-        "examples": {
-          "trm_mak_cell": {
-            "description": "TRM cell with MAK decomposition",
-            "xml": "<compartments PrimaryName=\"Cell1\" population=\"50\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_MAK\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" omega=\"0.001\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.0\" target=\"//@compartments.1\"/>\n</compartments>"
-          },
-          "trm_godunov_cell": {
-            "description": "TRM cell with Godunov decomposition (CTM-equivalent)",
-            "xml": "<compartments PrimaryName=\"Cell2\" population=\"75\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_GODUNOV\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.1\" target=\"//@compartments.2\"/>\n</compartments>"
-          },
-          "extended_trm_cell": {
-            "description": "Extended TRM with capacity drop (incident zone)",
-            "xml": "<compartments PrimaryName=\"IncidentZone\" population=\"120\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_CAPACITATED\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" capacityDropFactor=\"0.6\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.2\" target=\"//@compartments.3\"/>\n</compartments>"
-          }
-        },
-        "backward_compatibility": {
-          "description": "TRM features are fully optional - classical traffic models work unchanged",
-          "classical_traffic": "Use type=\"TRIANGULAR\" without TRM-specific attributes",
-          "trm_models": "Use type=\"TRM_MAK\", \"TRM_GODUNOV\", or \"TRM_CAPACITATED\"",
-          "detection": "Equation generator automatically detects TRM types"
-        },
-        "use_cases": {
-          "trm_applications": [
-            "Highway traffic simulation with kinetic interpretation",
-            "Stability analysis using reaction network theory",
-            "Comparison between different flux decompositions",
-            "Extended TRM for incident modeling",
-            "Network TRM for complex intersections",
-            "Educational: understanding traffic as reactions"
-          ]
-        },
-        "references": [
-          "Pereira, F. L., Figueiredo, J., & Ramos, C. C. (2024). The Traffic Reaction Model: A kinetic compartmental approach to road traffic modeling. Transportation Research Part B, 179, 102871.",
-          "Coogan, S., & Arcak, M. (2015). A Compartmental Model for Traffic Networks and its Dynamical Behavior. IEEE Trans. Automatic Control, 60(10), 2698-2703.",
-          "Daganzo, C. F. (1995). The Cell Transmission Model, Part II: Network Traffic. Transportation Research Part B, 29(2), 79-93."
-        ]
-      },
       "parameter_system": {
         "description": "NEW in Version 2.0: Comprehensive parameter system for symbolic/parametric modeling",
         "features": [
@@ -1116,23 +649,9 @@ METAMODEL:
       }
     },
     "best_practices": {
-      "model_type_selection": {
-        "disease_models": "Use standard compartments with rate-based and contact-based flows. Do not add supplyFunction or set junctionRule.",
-        "traffic_models": "Use compartments with supplyFunction element and junctionRule=\"PPFIFO\". Use parameters for split ratios (\u03b2) and supply/demand function parameters.",
-        "mixed_models": "Not recommended - keep disease and traffic models separate for clarity"
-      },
-      "flow_network_design": [
-        "Define source nodes with isSourceNode=true and maxDemand parameter",
-        "Define constrained nodes with isSourceNode=false and maxDensity, criticalDensity, maxThroughput parameters",
-        "Use RateFlow with routing coefficient parameters (e.g., \u03b2_{lk} for split ratios in traffic) for routing",
-        "Use BirthSource for source node external input/demand (e.g., d_l in traffic)",
-        "Set junctionRule=\"PPFIFO\" for all flow network compartments",
-        "Use Parameters for all network-specific values (allows easy modification and sensitivity analysis)"
-      ],
       "parameter_naming": [
-        "Disease models: Use Greek symbols (\u03b2 for transmission, \u03bc for mortality, \u03b3 for recovery, \u03c1 for progression)",
-        "Traffic models: Use standard notation (\u03c1 for density, \u03a6 for flow, \u03b2 for split ratio)",
-        "Use subscripts to distinguish entities (\u03bc\u2095 for human, \u03bc\u1d65 for vector, \u03b2_{12} for split ratio link 1\u21922)",
+        "Use Greek symbols for standard epidemiological parameters (\u03b2 for transmission, \u03bc for mortality, \u03b3 for recovery, \u03c1 for progression)",
+        "Use subscripts to distinguish between populations (\u03bc\u2095 for human, \u03bc\u1d65 for vector)",
         "Use function notation for dependencies: a(T) for temperature-dependent, \u03b8\u1d65(T,R) for temperature and rainfall",
         "Keep names concise but meaningful"
       ],
@@ -1236,45 +755,45 @@ LLM1 RESPONSE:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
-  <compartments PrimaryName="S_h">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.3" description="Infection of susceptible homosexual men through exclusive homosexual contact."/>
+  <compartments PrimaryName="Sh">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.3" description="Exclusive Homosexual Contact"/>
   </compartments>
-  <compartments PrimaryName="S_w">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Infection of susceptible women through bisexual contact."/>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Infection of susceptible women through exclusive heterosexual contact."/>
+  <compartments PrimaryName="Sw">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.4" description="Bisexual Contact from Ih"/>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Exclusive Heterosexual Contact from Im"/>
   </compartments>
-  <compartments PrimaryName="S_m">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.5" description="Infection of susceptible heterosexual men through bisexual contact."/>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.4" target="//@compartments.5" description="Infection of susceptible heterosexual men through exclusive heterosexual contact."/>
+  <compartments PrimaryName="Sm">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.5" description="Bisexual Contact from Ih"/>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.4" target="//@compartments.5" description="Exclusive Heterosexual Contact from Iw"/>
   </compartments>
-  <compartments PrimaryName="I_h">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Homosexual men begin initial treatment."/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Untreated homosexual men progress to AIDS."/>
+  <compartments PrimaryName="Ih">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Progression to Initial Treatment"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
-  <compartments PrimaryName="I_w">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Women begin initial treatment."/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Untreated women progress to AIDS."/>
+  <compartments PrimaryName="Iw">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Progression to Initial Treatment"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
-  <compartments PrimaryName="I_m">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Heterosexual men begin initial treatment."/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Untreated heterosexual men progress to AIDS."/>
+  <compartments PrimaryName="Im">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Progression to Initial Treatment"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
   <compartments PrimaryName="T">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Treated individuals progress to AIDS due to treatment failure."/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (treatment failure)"/>
   </compartments>
   <compartments PrimaryName="A"/>
   <birthSources name="Recruitment_Sh" rate="[[rate_missing]]" targetCompartment="//@compartments.0"/>
   <birthSources name="Recruitment_Sw" rate="[[rate_missing]]" targetCompartment="//@compartments.1"/>
   <birthSources name="Recruitment_Sm" rate="[[rate_missing]]" targetCompartment="//@compartments.2"/>
-  <deathSinks name="NaturalDeath_Sh" rate="[[rate_missing]]" sourceCompartment="//@compartments.0"/>
-  <deathSinks name="NaturalDeath_Sw" rate="[[rate_missing]]" sourceCompartment="//@compartments.1"/>
-  <deathSinks name="NaturalDeath_Sm" rate="[[rate_missing]]" sourceCompartment="//@compartments.2"/>
-  <deathSinks name="NaturalDeath_Ih" rate="[[rate_missing]]" sourceCompartment="//@compartments.3"/>
-  <deathSinks name="NaturalDeath_Iw" rate="[[rate_missing]]" sourceCompartment="//@compartments.4"/>
-  <deathSinks name="NaturalDeath_Im" rate="[[rate_missing]]" sourceCompartment="//@compartments.5"/>
-  <deathSinks name="NaturalDeath_T" rate="[[rate_missing]]" sourceCompartment="//@compartments.6"/>
-  <deathSinks name="NaturalDeath_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
-  <deathSinks name="AidsDeath_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
+  <deathSinks name="Natural_Death_Sh" rate="[[rate_missing]]" sourceCompartment="//@compartments.0"/>
+  <deathSinks name="Natural_Death_Sw" rate="[[rate_missing]]" sourceCompartment="//@compartments.1"/>
+  <deathSinks name="Natural_Death_Sm" rate="[[rate_missing]]" sourceCompartment="//@compartments.2"/>
+  <deathSinks name="Natural_Death_Ih" rate="[[rate_missing]]" sourceCompartment="//@compartments.3"/>
+  <deathSinks name="Natural_Death_Iw" rate="[[rate_missing]]" sourceCompartment="//@compartments.4"/>
+  <deathSinks name="Natural_Death_Im" rate="[[rate_missing]]" sourceCompartment="//@compartments.5"/>
+  <deathSinks name="Natural_Death_T" rate="[[rate_missing]]" sourceCompartment="//@compartments.6"/>
+  <deathSinks name="Natural_Death_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
+  <deathSinks name="AIDS_Death_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
 </seir:SEIRModel>
 ```
 ********************************************************************************
@@ -1365,45 +884,45 @@ LLM1'S RESPONSE:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
-  <compartments PrimaryName="S_h">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.3" description="Infection of susceptible homosexual men through exclusive homosexual contact."/>
+  <compartments PrimaryName="Sh">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.3" description="Exclusive Homosexual Contact"/>
   </compartments>
-  <compartments PrimaryName="S_w">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Infection of susceptible women through bisexual contact."/>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Infection of susceptible women through exclusive heterosexual contact."/>
+  <compartments PrimaryName="Sw">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.4" description="Bisexual Contact from Ih"/>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Exclusive Heterosexual Contact from Im"/>
   </compartments>
-  <compartments PrimaryName="S_m">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.5" description="Infection of susceptible heterosexual men through bisexual contact."/>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.4" target="//@compartments.5" description="Infection of susceptible heterosexual men through exclusive heterosexual contact."/>
+  <compartments PrimaryName="Sm">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.5" description="Bisexual Contact from Ih"/>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.4" target="//@compartments.5" description="Exclusive Heterosexual Contact from Iw"/>
   </compartments>
-  <compartments PrimaryName="I_h">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Homosexual men begin initial treatment."/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Untreated homosexual men progress to AIDS."/>
+  <compartments PrimaryName="Ih">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Progression to Initial Treatment"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
-  <compartments PrimaryName="I_w">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Women begin initial treatment."/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Untreated women progress to AIDS."/>
+  <compartments PrimaryName="Iw">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Progression to Initial Treatment"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
-  <compartments PrimaryName="I_m">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Heterosexual men begin initial treatment."/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Untreated heterosexual men progress to AIDS."/>
+  <compartments PrimaryName="Im">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.6" description="Progression to Initial Treatment"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
   <compartments PrimaryName="T">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Treated individuals progress to AIDS due to treatment failure."/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS (treatment failure)"/>
   </compartments>
   <compartments PrimaryName="A"/>
   <birthSources name="Recruitment_Sh" rate="[[rate_missing]]" targetCompartment="//@compartments.0"/>
   <birthSources name="Recruitment_Sw" rate="[[rate_missing]]" targetCompartment="//@compartments.1"/>
   <birthSources name="Recruitment_Sm" rate="[[rate_missing]]" targetCompartment="//@compartments.2"/>
-  <deathSinks name="NaturalDeath_Sh" rate="[[rate_missing]]" sourceCompartment="//@compartments.0"/>
-  <deathSinks name="NaturalDeath_Sw" rate="[[rate_missing]]" sourceCompartment="//@compartments.1"/>
-  <deathSinks name="NaturalDeath_Sm" rate="[[rate_missing]]" sourceCompartment="//@compartments.2"/>
-  <deathSinks name="NaturalDeath_Ih" rate="[[rate_missing]]" sourceCompartment="//@compartments.3"/>
-  <deathSinks name="NaturalDeath_Iw" rate="[[rate_missing]]" sourceCompartment="//@compartments.4"/>
-  <deathSinks name="NaturalDeath_Im" rate="[[rate_missing]]" sourceCompartment="//@compartments.5"/>
-  <deathSinks name="NaturalDeath_T" rate="[[rate_missing]]" sourceCompartment="//@compartments.6"/>
-  <deathSinks name="NaturalDeath_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
-  <deathSinks name="AidsDeath_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
+  <deathSinks name="Natural_Death_Sh" rate="[[rate_missing]]" sourceCompartment="//@compartments.0"/>
+  <deathSinks name="Natural_Death_Sw" rate="[[rate_missing]]" sourceCompartment="//@compartments.1"/>
+  <deathSinks name="Natural_Death_Sm" rate="[[rate_missing]]" sourceCompartment="//@compartments.2"/>
+  <deathSinks name="Natural_Death_Ih" rate="[[rate_missing]]" sourceCompartment="//@compartments.3"/>
+  <deathSinks name="Natural_Death_Iw" rate="[[rate_missing]]" sourceCompartment="//@compartments.4"/>
+  <deathSinks name="Natural_Death_Im" rate="[[rate_missing]]" sourceCompartment="//@compartments.5"/>
+  <deathSinks name="Natural_Death_T" rate="[[rate_missing]]" sourceCompartment="//@compartments.6"/>
+  <deathSinks name="Natural_Death_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
+  <deathSinks name="AIDS_Death_A" rate="[[rate_missing]]" sourceCompartment="//@compartments.7"/>
 </seir:SEIRModel>
 ```
 ********************************************************************************
@@ -1411,211 +930,222 @@ LLM2'S RESPONSE:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
-  <compartments PrimaryName="S_h">
+  <compartments PrimaryName="Sh">
     <!--
-     Reasoning for the contact rate from S_h to I_h:
-     1.  This flow represents the infection of susceptible homosexual men (S_h) by infected homosexual men (I_h).
-     2.  The standard formula for a contact rate in an SIR model is `beta / N`, where `beta` is the transmission probability and `N` is the total population in the interacting group.
-     3.  The relevant transmission probability is `β_h` (Probability of homosexual transmission), with a given value of 0.44.
-     4.  The rate should be `β_h / N_h`, where `N_h` is the total homosexual male population (`S_h + I_h`).
-     5.  CRITICAL: The total population `N_h` is required for this calculation but is NOT explicitly provided in the user_input section.
-     6.  As per the instructions, a value for `N_h` must not be derived or assumed (e.g., by summing S_h and I_h).
-     7.  Therefore, this rate cannot be computed.
-    --><outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.3" description="Infection of susceptible homosexual men through exclusive homosexual contact."/>
+      REASONING:
+      Step 1: Identify the flow. This is a ContactFlow from 'Sh' (Susceptible homosexual men) to 'Ih' (Infected homosexual men), caused by contact with 'Ih'.
+      Step 2: Identify the formula. A standard formula for the per-capita rate of infection (force of infection) is (beta * I / N), where 'beta' is the transmission probability, 'I' is the infectious population, and 'N' is the total population in the contact group.
+      Step 3: Identify the parameters. The parameter for homosexual transmission probability is beta_h = 0.44. The initial infectious population is I_h(0) = 79.
+      Step 4: Check for all required variables. The formula requires a total population 'N' (e.g., N_h, the total population of homosexual men) for normalization.
+      Step 5: Conclusion. The user_input provides initial values for susceptible and infected compartments but does NOT explicitly provide a value for the total population 'N'. As per the instructions, I must not derive 'N' by summing other populations (e.g., S_h + I_h).
+      Therefore, this rate cannot be computed due to the missing 'N' variable.
+    -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.3" description="Exclusive Homosexual Contact"/>
   </compartments>
-  <compartments PrimaryName="S_w">
+  <compartments PrimaryName="Sw">
     <!--
-     Reasoning for the contact rate from S_w to I_w (bisexual contact):
-     1.  This flow represents the infection of susceptible women (S_w). The description specifies "bisexual contact", which implies transmission from the homosexual male population (I_h).
-     2.  The relevant parameter is `β_hw` (Probability of transmission from homosexual men to women), given as 0.018.
-     3.  The standard formula for the contact rate is `β_hw / N`, where `N` is the total population relevant to this interaction.
-     4.  CRITICAL: The total population `N` required for this calculation (e.g., total male population, total sexually active population) is NOT explicitly provided in the user_input section.
-     5.  As per the instructions, a value for `N` must not be derived or assumed.
-     6.  Therefore, this rate cannot be computed.
-     (Note: The XML specifies the contact compartment as I_m, which contradicts the description. The reasoning follows the description's implication of using β_hw).
-    --><outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Infection of susceptible women through bisexual contact."/>
+      REASONING:
+      Step 1: Identify the flow. This is a ContactFlow from 'Sw' (Susceptible women) to 'Iw' (Infected women), caused by contact with 'Ih' (Infected homosexual men). This represents bisexual transmission.
+      Step 2: Identify the formula. A standard formula for the per-capita rate of infection (force of infection) is (beta * I / N).
+      Step 3: Identify the parameters. The parameter for transmission from homosexual men to women is beta_hw = 0.018. The initial infectious population is I_h(0) = 79.
+      Step 4: Check for all required variables. The formula requires a total population 'N' (e.g., N_h, the total population of the infectious group) for normalization.
+      Step 5: Conclusion. The user_input does NOT explicitly provide a value for the total population 'N'. As per the instructions, I must not derive 'N'.
+      Therefore, this rate cannot be computed due to the missing 'N' variable.
+    -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.4" description="Bisexual Contact from Ih"/>
     <!--
-     Reasoning for the contact rate from S_w to I_w (exclusive heterosexual contact):
-     1.  This flow represents the infection of susceptible women (S_w) by infected heterosexual men (I_m).
-     2.  The relevant parameter is `β_s` (Probability of heterosexual transmission), given as 0.02.
-     3.  The standard formula for the contact rate is `β_s / N`, where `N` is the total population in the heterosexual interacting group.
-     4.  CRITICAL: The total population `N` required for this calculation (e.g., `S_w + I_w + S_m + I_m`) is NOT explicitly provided in the user_input section.
-     5.  As per the instructions, a value for `N` must not be derived or assumed.
-     6.  Therefore, this rate cannot be computed.
-    --><outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Infection of susceptible women through exclusive heterosexual contact."/>
+      REASONING:
+      Step 1: Identify the flow. This is a ContactFlow from 'Sw' (Susceptible women) to 'Iw' (Infected women), caused by contact with 'Im' (Infected heterosexual men).
+      Step 2: Identify the formula. A standard formula for the per-capita rate of infection (force of infection) is (beta * I / N).
+      Step 3: Identify the parameters. The parameter for heterosexual transmission is beta_s = 0.02. The initial infectious population is I_m(0) = 29.
+      Step 4: Check for all required variables. The formula requires a total population 'N' (e.g., N_m, the total population of heterosexual men) for normalization.
+      Step 5: Conclusion. The user_input does NOT explicitly provide a value for the total population 'N'. As per the instructions, I must not derive 'N'.
+      Therefore, this rate cannot be computed due to the missing 'N' variable.
+    -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.5" target="//@compartments.4" description="Exclusive Heterosexual Contact from Im"/>
   </compartments>
-  <compartments PrimaryName="S_m">
+  <compartments PrimaryName="Sm">
     <!--
-     Reasoning for the contact rate from S_m to I_m (bisexual contact):
-     1.  This flow represents the infection of susceptible heterosexual men (S_m). The description specifies "bisexual contact," implying transmission from infected homosexual men (I_h).
-     2.  The relevant parameter is `β_hm` (Probability of transmission from homosexual men to heterosexual men), given as 0.005.
-     3.  The standard formula for the contact rate is `β_hm / N`, where `N` is the total population relevant to this interaction.
-     4.  CRITICAL: The total population `N` required for this calculation is NOT explicitly provided in the user_input section.
-     5.  As per the instructions, a value for `N` must not be derived or assumed.
-     6.  Therefore, this rate cannot be computed.
-    --><outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.5" description="Infection of susceptible heterosexual men through bisexual contact."/>
+      REASONING:
+      Step 1: Identify the flow. This is a ContactFlow from 'Sm' (Susceptible heterosexual men) to 'Im' (Infected heterosexual men), caused by contact with 'Ih' (Infected homosexual men). This represents bisexual transmission.
+      Step 2: Identify the formula. A standard formula for the per-capita rate of infection (force of infection) is (beta * I / N).
+      Step 3: Identify the parameters. The parameter for transmission from homosexual men to heterosexual men is beta_hm = 0.005. The initial infectious population is I_h(0) = 79.
+      Step 4: Check for all required variables. The formula requires a total population 'N' (e.g., N_h, the total population of the infectious group) for normalization.
+      Step 5: Conclusion. The user_input does NOT explicitly provide a value for the total population 'N'. As per the instructions, I must not derive 'N'.
+      Therefore, this rate cannot be computed due to the missing 'N' variable.
+    -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.3" target="//@compartments.5" description="Bisexual Contact from Ih"/>
     <!--
-     Reasoning for the contact rate from S_m to I_m (exclusive heterosexual contact):
-     1.  This flow represents the infection of susceptible heterosexual men (S_m) by infected women (I_w).
-     2.  The relevant parameter is `β_s` (Probability of heterosexual transmission), given as 0.02.
-     3.  The standard formula for the contact rate is `β_s / N`, where `N` is the total population in the heterosexual interacting group.
-     4.  CRITICAL: The total population `N` required for this calculation (e.g., `S_w + I_w + S_m + I_m`) is NOT explicitly provided in the user_input section.
-     5.  As per the instructions, a value for `N` must not be derived or assumed.
-     6.  Therefore, this rate cannot be computed.
-    --><outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.4" target="//@compartments.5" description="Infection of susceptible heterosexual men through exclusive heterosexual contact."/>
+      REASONING:
+      Step 1: Identify the flow. This is a ContactFlow from 'Sm' (Susceptible heterosexual men) to 'Im' (Infected heterosexual men), caused by contact with 'Iw' (Infected women).
+      Step 2: Identify the formula. A standard formula for the per-capita rate of infection (force of infection) is (beta * I / N).
+      Step 3: Identify the parameters. The parameter for heterosexual transmission is beta_s = 0.02. The initial infectious population is I_w(0) = 6.
+      Step 4: Check for all required variables. The formula requires a total population 'N' (e.g., N_w, the total population of women) for normalization.
+      Step 5: Conclusion. The user_input does NOT explicitly provide a value for the total population 'N'. As per the instructions, I must not derive 'N'.
+      Therefore, this rate cannot be computed due to the missing 'N' variable.
+    -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.4" target="//@compartments.5" description="Exclusive Heterosexual Contact from Iw"/>
   </compartments>
-  <compartments PrimaryName="I_h">
+  <compartments PrimaryName="Ih">
     <!--
-     Reasoning for the rate from I_h to T:
-     1.  This flow represents infected homosexual men (I_h) beginning treatment and moving to the treated compartment (T).
-     2.  The formula for this per-capita rate is derived from the total flow expression: `α * p * (I_h + I_w + I_m)`. The per-capita rate for any infected individual is `α * p`.
-     3.  The parameter `α` (Departure rate from infected compartments) is 0.3333.
-     4.  The parameter `p` (Proportion of infected individuals who receive initial treatment) is 0.90.
-     5.  Calculation: rate = α * p = 0.3333 * 0.90 = 0.29997.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.6" description="Homosexual men begin initial treatment."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'Ih' (Untreated infected homosexual men) to 'T' (Treated individuals).
+      Step 2: Find the formula. The user input specifies the rate for 'I_h + I_w + I_m -> T' is 'α * p * (I_h + I_w + I_m)'. This is a total flow. The per-capita rate for any individual in I_h, I_w, or I_m is 'α * p'.
+      Step 3: Substitute parameter values. 'α' (Departure rate from infected) is 0.3333. 'p' (Proportion receiving treatment) is 0.90.
+      Step 4: Compute the rate. Rate = 0.3333 * 0.90 = 0.29997.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.6" description="Progression to Initial Treatment"/>
     <!--
-     Reasoning for the rate from I_h to A:
-     1.  This flow represents untreated infected homosexual men (I_h) progressing to AIDS (A).
-     2.  The formula for this per-capita rate is derived from the total flow expression: `α * (1-p) * (I_h + I_w + I_m)`. The per-capita rate for any untreated infected individual is `α * (1-p)`.
-     3.  The parameter `α` (Departure rate from infected compartments) is 0.3333.
-     4.  The parameter `p` (Proportion of infected individuals who receive initial treatment) is 0.90.
-     5.  Calculation: rate = α * (1 - p) = 0.3333 * (1 - 0.90) = 0.3333 * 0.1 = 0.03333.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.7" description="Untreated homosexual men progress to AIDS."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'Ih' (Untreated infected homosexual men) to 'A' (AIDS).
+      Step 2: Find the formula. The user input specifies the rate for 'I_h + I_w + I_m -> A' is 'α * (1-p) * (I_h + I_w + I_m)'. This is a total flow. The per-capita rate for any individual in I_h, I_w, or I_m is 'α * (1-p)'.
+      Step 3: Substitute parameter values. 'α' (Departure rate from infected) is 0.3333. 'p' (Proportion receiving treatment) is 0.90. So, (1-p) is 0.10.
+      Step 4: Compute the rate. Rate = 0.3333 * (1 - 0.90) = 0.3333 * 0.1 = 0.03333.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
-  <compartments PrimaryName="I_w">
+  <compartments PrimaryName="Iw">
     <!--
-     Reasoning for the rate from I_w to T:
-     1.  This flow represents infected women (I_w) beginning treatment and moving to the treated compartment (T).
-     2.  The formula for this per-capita rate is `α * p`.
-     3.  The parameter `α` (Departure rate from infected compartments) is 0.3333.
-     4.  The parameter `p` (Proportion of infected individuals who receive initial treatment) is 0.90.
-     5.  Calculation: rate = α * p = 0.3333 * 0.90 = 0.29997.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.6" description="Women begin initial treatment."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'Iw' (Untreated infected women) to 'T' (Treated individuals).
+      Step 2: Find the formula. The user input specifies the rate for 'I_h + I_w + I_m -> T' is 'α * p * (I_h + I_w + I_m)'. This is a total flow. The per-capita rate for any individual in I_h, I_w, or I_m is 'α * p'.
+      Step 3: Substitute parameter values. 'α' (Departure rate from infected) is 0.3333. 'p' (Proportion receiving treatment) is 0.90.
+      Step 4: Compute the rate. Rate = 0.3333 * 0.90 = 0.29997.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.6" description="Progression to Initial Treatment"/>
     <!--
-     Reasoning for the rate from I_w to A:
-     1.  This flow represents untreated infected women (I_w) progressing to AIDS (A).
-     2.  The formula for this per-capita rate is `α * (1-p)`.
-     3.  The parameter `α` (Departure rate from infected compartments) is 0.3333.
-     4.  The parameter `p` (Proportion of infected individuals who receive initial treatment) is 0.90.
-     5.  Calculation: rate = α * (1 - p) = 0.3333 * (1 - 0.90) = 0.3333 * 0.1 = 0.03333.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.7" description="Untreated women progress to AIDS."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'Iw' (Untreated infected women) to 'A' (AIDS).
+      Step 2: Find the formula. The user input specifies the rate for 'I_h + I_w + I_m -> A' is 'α * (1-p) * (I_h + I_w + I_m)'. This is a total flow. The per-capita rate for any individual in I_h, I_w, or I_m is 'α * (1-p)'.
+      Step 3: Substitute parameter values. 'α' (Departure rate from infected) is 0.3333. 'p' (Proportion receiving treatment) is 0.90. So, (1-p) is 0.10.
+      Step 4: Compute the rate. Rate = 0.3333 * (1 - 0.90) = 0.3333 * 0.1 = 0.03333.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
-  <compartments PrimaryName="I_m">
+  <compartments PrimaryName="Im">
     <!--
-     Reasoning for the rate from I_m to T:
-     1.  This flow represents infected heterosexual men (I_m) beginning treatment and moving to the treated compartment (T).
-     2.  The formula for this per-capita rate is `α * p`.
-     3.  The parameter `α` (Departure rate from infected compartments) is 0.3333.
-     4.  The parameter `p` (Proportion of infected individuals who receive initial treatment) is 0.90.
-     5.  Calculation: rate = α * p = 0.3333 * 0.90 = 0.29997.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.6" description="Heterosexual men begin initial treatment."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'Im' (Untreated infected heterosexual men) to 'T' (Treated individuals).
+      Step 2: Find the formula. The user input specifies the rate for 'I_h + I_w + I_m -> T' is 'α * p * (I_h + I_w + I_m)'. This is a total flow. The per-capita rate for any individual in I_h, I_w, or I_m is 'α * p'.
+      Step 3: Substitute parameter values. 'α' (Departure rate from infected) is 0.3333. 'p' (Proportion receiving treatment) is 0.90.
+      Step 4: Compute the rate. Rate = 0.3333 * 0.90 = 0.29997.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.6" description="Progression to Initial Treatment"/>
     <!--
-     Reasoning for the rate from I_m to A:
-     1.  This flow represents untreated infected heterosexual men (I_m) progressing to AIDS (A).
-     2.  The formula for this per-capita rate is `α * (1-p)`.
-     3.  The parameter `α` (Departure rate from infected compartments) is 0.3333.
-     4.  The parameter `p` (Proportion of infected individuals who receive initial treatment) is 0.90.
-     5.  Calculation: rate = α * (1 - p) = 0.3333 * (1 - 0.90) = 0.3333 * 0.1 = 0.03333.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.7" description="Untreated heterosexual men progress to AIDS."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'Im' (Untreated infected heterosexual men) to 'A' (AIDS).
+      Step 2: Find the formula. The user input specifies the rate for 'I_h + I_w + I_m -> A' is 'α * (1-p) * (I_h + I_w + I_m)'. This is a total flow. The per-capita rate for any individual in I_h, I_w, or I_m is 'α * (1-p)'.
+      Step 3: Substitute parameter values. 'α' (Departure rate from infected) is 0.3333. 'p' (Proportion receiving treatment) is 0.90. So, (1-p) is 0.10.
+      Step 4: Compute the rate. Rate = 0.3333 * (1 - 0.90) = 0.3333 * 0.1 = 0.03333.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.7" description="Progression to AIDS (untreated)"/>
   </compartments>
   <compartments PrimaryName="T">
     <!--
-     Reasoning for the rate from T to A:
-     1.  This flow represents treated individuals (T) progressing to AIDS (A) due to treatment failure.
-     2.  The formula for this per-capita rate is `δ`.
-     3.  The parameter `δ` (Rate of AIDS development in treated individuals) is 0.018.
-     4.  Calculation: rate = 0.018.
-    --><outgoingFlows xsi:type="seir:RateFlow" rate="0.018" target="//@compartments.7" description="Treated individuals progress to AIDS due to treatment failure."/>
+      REASONING:
+      Step 1: Identify the flow. This is a RateFlow from 'T' (Treated individuals) to 'A' (AIDS), representing treatment failure.
+      Step 2: Find the formula. The user input provides the rate expression 'δ * T'. The per-capita rate is 'δ'.
+      Step 3: Substitute parameter value. 'δ' (Rate of AIDS development in treated) is 0.018.
+      Step 4: Compute the rate. The rate is simply the value of δ, which is 0.018.
+    -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.018" target="//@compartments.7" description="Progression to AIDS (treatment failure)"/>
   </compartments>
   <compartments PrimaryName="A"/>
   <!--
-   Reasoning for the rate for Recruitment_Sh:
-   1.  This is a birth source, representing recruitment into the susceptible homosexual men compartment (S_h).
-   2.  The rate expression is given as `Ψ * θ * (1-γ)`. This is a total influx rate, not a per-capita rate.
-   3.  The parameter `Ψ` (Recruitment rate) is 333.
-   4.  The parameter `θ` (Proportion of men in the population) is 0.48.
-   5.  The parameter `γ` (Proportion of heterosexual men among all men) is 0.92.
-   6.  Calculation: rate = Ψ * θ * (1 - γ) = 333 * 0.48 * (1 - 0.92) = 333 * 0.48 * 0.08 = 12.7872.
-  --><birthSources name="Recruitment_Sh" rate="12.7872" targetCompartment="//@compartments.0"/>
+    REASONING:
+    Step 1: Identify the flow. This is a birth source, representing the recruitment of susceptible homosexual men (into 'Sh').
+    Step 2: Find the formula. The user input provides the rate expression 'Ψ * θ * (1-γ)'.
+    Step 3: Substitute parameter values. 'Ψ' (Recruitment rate) is 333. 'θ' (Proportion of men) is 0.48. 'γ' (Proportion of heterosexual men) is 0.92.
+    Step 4: Compute the rate. Rate = 333 * 0.48 * (1 - 0.92) = 333 * 0.48 * 0.08 = 12.7872.
+  -->
+  <birthSources name="Recruitment_Sh" rate="12.7872" targetCompartment="//@compartments.0"/>
   <!--
-   Reasoning for the rate for Recruitment_Sw:
-   1.  This is a birth source, representing recruitment into the susceptible women compartment (S_w).
-   2.  The rate expression is given as `Ψ * (1-θ)`. This is a total influx rate.
-   3.  The parameter `Ψ` (Recruitment rate) is 333.
-   4.  The parameter `θ` (Proportion of men in the population) is 0.48.
-   5.  Calculation: rate = Ψ * (1 - θ) = 333 * (1 - 0.48) = 333 * 0.52 = 173.16.
-  --><birthSources name="Recruitment_Sw" rate="173.16" targetCompartment="//@compartments.1"/>
+    REASONING:
+    Step 1: Identify the flow. This is a birth source, representing the recruitment of susceptible women (into 'Sw').
+    Step 2: Find the formula. The user input provides the rate expression 'Ψ * (1-θ)'.
+    Step 3: Substitute parameter values. 'Ψ' (Recruitment rate) is 333. 'θ' (Proportion of men) is 0.48.
+    Step 4: Compute the rate. Rate = 333 * (1 - 0.48) = 333 * 0.52 = 173.16.
+  -->
+  <birthSources name="Recruitment_Sw" rate="173.16" targetCompartment="//@compartments.1"/>
   <!--
-   Reasoning for the rate for Recruitment_Sm:
-   1.  This is a birth source, representing recruitment into the susceptible heterosexual men compartment (S_m).
-   2.  The rate expression is given as `Ψ * θ * γ`. This is a total influx rate.
-   3.  The parameter `Ψ` (Recruitment rate) is 333.
-   4.  The parameter `θ` (Proportion of men in the population) is 0.48.
-   5.  The parameter `γ` (Proportion of heterosexual men among all men) is 0.92.
-   6.  Calculation: rate = Ψ * θ * γ = 333 * 0.48 * 0.92 = 147.0192.
-  --><birthSources name="Recruitment_Sm" rate="147.0192" targetCompartment="//@compartments.2"/>
+    REASONING:
+    Step 1: Identify the flow. This is a birth source, representing the recruitment of susceptible heterosexual men (into 'Sm').
+    Step 2: Find the formula. The user input provides the rate expression 'Ψ * θ * γ'.
+    Step 3: Substitute parameter values. 'Ψ' (Recruitment rate) is 333. 'θ' (Proportion of men) is 0.48. 'γ' (Proportion of heterosexual men) is 0.92.
+    Step 4: Compute the rate. Rate = 333 * 0.48 * 0.92 = 147.0192.
+  -->
+  <birthSources name="Recruitment_Sm" rate="147.0192" targetCompartment="//@compartments.2"/>
   <!--
-   Reasoning for the rate for NaturalDeath_Sh:
-   1.  This is a death sink representing natural mortality from the S_h compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_Sh" rate="0.0129" sourceCompartment="//@compartments.0"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'Sh'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_Sh" rate="0.0129" sourceCompartment="//@compartments.0"/>
   <!--
-   Reasoning for the rate for NaturalDeath_Sw:
-   1.  This is a death sink representing natural mortality from the S_w compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_Sw" rate="0.0129" sourceCompartment="//@compartments.1"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'Sw'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_Sw" rate="0.0129" sourceCompartment="//@compartments.1"/>
   <!--
-   Reasoning for the rate for NaturalDeath_Sm:
-   1.  This is a death sink representing natural mortality from the S_m compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_Sm" rate="0.0129" sourceCompartment="//@compartments.2"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'Sm'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_Sm" rate="0.0129" sourceCompartment="//@compartments.2"/>
   <!--
-   Reasoning for the rate for NaturalDeath_Ih:
-   1.  This is a death sink representing natural mortality from the I_h compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_Ih" rate="0.0129" sourceCompartment="//@compartments.3"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'Ih'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_Ih" rate="0.0129" sourceCompartment="//@compartments.3"/>
   <!--
-   Reasoning for the rate for NaturalDeath_Iw:
-   1.  This is a death sink representing natural mortality from the I_w compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_Iw" rate="0.0129" sourceCompartment="//@compartments.4"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'Iw'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_Iw" rate="0.0129" sourceCompartment="//@compartments.4"/>
   <!--
-   Reasoning for the rate for NaturalDeath_Im:
-   1.  This is a death sink representing natural mortality from the I_m compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_Im" rate="0.0129" sourceCompartment="//@compartments.5"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'Im'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_Im" rate="0.0129" sourceCompartment="//@compartments.5"/>
   <!--
-   Reasoning for the rate for NaturalDeath_T:
-   1.  This is a death sink representing natural mortality from the T compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_T" rate="0.0129" sourceCompartment="//@compartments.6"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'T'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_T" rate="0.0129" sourceCompartment="//@compartments.6"/>
   <!--
-   Reasoning for the rate for NaturalDeath_A:
-   1.  This is a death sink representing natural mortality from the A compartment.
-   2.  The user input specifies a universal natural mortality rate for all compartments. The per-capita rate is `μ`.
-   3.  The parameter `μ` (Natural mortality rate) is 0.0129.
-   4.  Therefore, the rate is 0.0129.
-  --><deathSinks name="NaturalDeath_A" rate="0.0129" sourceCompartment="//@compartments.7"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing natural mortality from compartment 'A'.
+    Step 2: Find the formula. The user input specifies a universal natural mortality rate of 'μ * Compartment'. The per-capita rate is 'μ'.
+    Step 3: Substitute parameter value. 'μ' (Natural mortality rate) is 0.0129.
+    Step 4: The rate is 0.0129.
+  -->
+  <deathSinks name="Natural_Death_A" rate="0.0129" sourceCompartment="//@compartments.7"/>
   <!--
-   Reasoning for the rate for AidsDeath_A:
-   1.  This is a death sink representing AIDS-induced mortality from the A compartment.
-   2.  The formula for this per-capita rate is `d`.
-   3.  The parameter `d` (AIDS-induced mortality rate) is 0.3333.
-   4.  Therefore, the rate is 0.3333.
-  --><deathSinks name="AidsDeath_A" rate="0.3333" sourceCompartment="//@compartments.7"/>
+    REASONING:
+    Step 1: Identify the flow. This is a death sink representing AIDS-induced mortality from compartment 'A'.
+    Step 2: Find the formula. The user input provides the rate expression 'd * A'. The per-capita rate is 'd'.
+    Step 3: Substitute parameter value. 'd' (AIDS-induced mortality rate) is 0.3333.
+    Step 4: The rate is 0.3333.
+  -->
+  <deathSinks name="AIDS_Death_A" rate="0.3333" sourceCompartment="//@compartments.7"/>
 </seir:SEIRModel>
 ```
