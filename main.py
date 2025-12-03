@@ -6,85 +6,89 @@ import google.generativeai as genai
 import PIL.Image
 
 
-# --- Load prompts from JSON file ---
-with open("prompts.json", "r", encoding="utf-8") as f:
-    prompts = json.load(f)
+# --- Load configuration files ---
+def load_json_file(filename: str) -> dict:
+    """Load and return JSON file contents."""
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: '{filename}' not found.")
+        raise
+    except json.JSONDecodeError:
+        print(f"ERROR: '{filename}' is not valid JSON.")
+        raise
+
+
+# Load prompts and models
+prompts = load_json_file("prompts.json")
 LLM1_PROMPT = prompts["LLM1_PROMPT"]
 LLM2_PROMPT = prompts["LLM2_PROMPT"]
-ESTIMATION_PROMPT = prompts["ESTIMATION_PROMPT"]
 SIMULATION_PROMPT = prompts["SIMULATION_PROMPT"]
+METAMODEL_FILENAME = "metamodel.json"
 
-# --- Load ODE equations from JSON file ---
-with open("ode.json", "r", encoding="utf-8") as f:
-    ode_equations = json.load(f)
-hiv_ode = ode_equations["hivModel"]
-covid_ode = ode_equations["covidModel"]
-simple_ode = ode_equations["simpleModel"]
-
-# --- Load models from JSON file ---
-with open("models.json", "r", encoding="utf-8") as f:
-    models = json.load(f)
+models = load_json_file("models.json")
 hivModel = models["hivModel"]
 covidModel = models["covidModel"]
 simpleModel = models["simpleModel"]
 
 
+# --- Initialize Gemini API ---
 try:
-    # Load the API key from environment variables
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     load_dotenv(env_path)
-    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 except KeyError:
-    print("FATAL ERROR: 'GOOGLE_API_KEY' environment variable not set.")
+    print("FATAL ERROR: 'GEMINI_API_KEY' environment variable not set.")
     print("Please set it before running the script.")
-    exit()
+    exit(1)
+
+# Use the stable API that works
 model = genai.GenerativeModel('gemini-2.5-pro')
 
 
-
-
-
-
-
-
-
-def generate_seirmodel_from_image(image_path: str, user_input: str, output_fileName: str) -> str:
+def generate_seirmodel_from_image(
+    image_path: str, 
+    user_input: str, 
+    output_fileName: str
+) -> str:
     """
     Generates a SEIR model in XML format using a two-stage LLM process with multimodal input,
     and saves the full interaction log.
 
     Args:
-        image_path (str): Path to the epidemiological model diagram image.
-        user_input (str): Text containing tabular data (compartments, flows, variables).
-        output_file_name (str): The desired name for the output XML file (e.g., "hiv_model.xml").
+        image_path: Path to the epidemiological model diagram image (relative to 'diagrams' folder).
+        user_input: Text containing tabular data (compartments, flows, variables).
+        output_fileName: The desired name for the output file (e.g., "hiv_model.txt").
 
     Returns:
         str: A success message with the output file path, or an error message.
     """
     try:
-        # Load the language specifications from a JSON file and convert to a pretty string
+        # Load metamodel specifications
         with open(METAMODEL_FILENAME, "r", encoding="utf-8") as f:
             lang_specs_json = json.load(f)
         lang_specs = json.dumps(lang_specs_json, indent=2)
         
-        # Load the image using the modern PIL library
+        # Load the image using PIL
         img_path = os.path.join(os.path.dirname(__file__), "diagrams", image_path)
         img = PIL.Image.open(img_path)
 
+        print(f"'{image_path}' loaded successfully.")
+        print(f"'{METAMODEL_FILENAME}' loaded successfully.")
+
     except FileNotFoundError as err:
-        print(f"Error: A required file was not found - {err}")
-        return f"Error: A required file was not found - {err}"
+        error_msg = f"Error: File not found - {err}"
+        print(error_msg)
+        return error_msg
     except Exception as err:
-        print(f"An unexpected error occurred while reading files: {err}")
-        return f"An unexpected error occurred while reading files: {err}"
+        error_msg = f"Unexpected error reading files: {err}"
+        print(error_msg)
+        return error_msg
 
-
-    print(f"'{image_path}' loaded successfully.")
-    print(f"'{METAMODEL_FILENAME}' loaded successfully.")
-    # --- Construct the final prompt text ---
+    # --- Stage 1: Structural generation ---
     separator = "\n" + "*" * 80 + "\n"
-
-
+    
     llm1_input = (
         f"{separator}"
         f"PROMPT: \n{LLM1_PROMPT.strip()}\n"
@@ -94,12 +98,15 @@ def generate_seirmodel_from_image(image_path: str, user_input: str, output_fileN
         f"USER_INPUT: \n{user_input.strip()}"
     )
 
+    # Generate content with image + text (old SDK style)
     llm1 = model.generate_content([
-        img,                 # The image object
-        llm1_input.strip()  # The text part of the prompt
+        img,                   # The PIL Image object
+        llm1_input.strip()    # The text part of the prompt
     ]).text.strip()
+    
+    print("LLM1 response generated successfully.")
 
-
+    # --- Stage 2: Refinement ---
     llm2_input = (
         f"{separator}"
         f"PROMPT:\n{LLM2_PROMPT.strip()}\n"
@@ -110,11 +117,11 @@ def generate_seirmodel_from_image(image_path: str, user_input: str, output_fileN
         f"{separator}"
     )
 
-    # --- Call the modern API with a list of parts (image and text) ---
     llm2 = model.generate_content(llm2_input.strip()).text.strip()
+    print("LLM2 response generated successfully.")
     
     # --- Format and save the output ---
-    output_content =(
+    output_content = (
         f"LLM1 PROMPT:\n{LLM1_PROMPT.strip()}"
         f"{separator}"
         f"METAMODEL:\n{lang_specs.strip()}"
@@ -123,123 +130,144 @@ def generate_seirmodel_from_image(image_path: str, user_input: str, output_fileN
         f"{separator}"
         f"Image is also provided with the above textual input!"
         f"{separator}"
-        f"LLM1 RESPONSE:\n {llm1}"
+        f"LLM1 RESPONSE:\n{llm1}"
         f"{separator}"
         f"{separator}"
         f"LLM2 PROMPT:\n{LLM2_PROMPT.strip()}"
         f"{separator}"
-        f"USER INPUT: \n{user_input}"
+        f"USER INPUT:\n{user_input}"
         f"{separator}"
-        f"LLM1'S RESPONSE: \n{llm1}"
+        f"LLM1'S RESPONSE:\n{llm1}"
         f"{separator}"
         f"LLM2'S RESPONSE:\n{llm2}"
     )
 
     try:
         # Ensure the output directory exists
-        output_dir = os.path.join(os.path.dirname(output_fileName), "prompt_sample")
+        output_dir = "prompt_sample"
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, os.path.basename(output_fileName))
+        output_file = os.path.join(output_dir, output_fileName)
+        
         with open(output_file, "w", encoding="utf-8") as tf:
             tf.write(output_content)
+        
+        success_msg = f"SEIR model successfully written to {output_file}"
+        print(success_msg)
+        return success_msg
+        
     except IOError as e:
-        return f"Error writing to output file '{output_fileName}': {e}"
+        error_msg = f"Error writing to output file '{output_file}': {e}"
+        print(error_msg)
+        return error_msg
 
-    print(f"SEIR model successfully written to {output_fileName}")
 
-
-
-def estimate_and_simulate(ode_equations: str, estimation_image_path: str, output_fileName: str) -> str:
+def simulate(ode_equations: str, output_fileName: str) -> str:
     """
-    Estimates missing parameters and generates a Python simulation script for an ODE model.
+    Generates a Python simulation script for an ODE model.
 
     Args:
-        ode_equations (str): The ODE equations for the model.
-        estimation_image_path (str): Path to the result graph image for estimation.
-        output_fileName (str): The desired name for the output Python file (e.g., "simulation.py").
+        ode_equations: Identifier for the ODE equations (e.g., 'hiv_ode', 'covid_ode').
+        output_fileName: The desired name for the output Python file (e.g., "simulation.py").
 
     Returns:
         str: A success message with the output file path, or an error message.
     """
     try:
-        # Load the result graph image
-        img_path = os.path.join(os.path.dirname(__file__), "diagrams", estimation_image_path)
-        img = PIL.Image.open(img_path)
-
-    except FileNotFoundError as err:
-        print(f"Error: A required file was not found - {err}")
-        return f"Error: A required file was not found - {err}"
-    except Exception as err:
-        print(f"An unexpected error occurred while reading files: {err}")
-        return f"An unexpected error occurred while reading files: {err}"
-
-    print(f"'{estimation_image_path}' loaded successfully.")
+        # Load ODE equations from JSON file
+        ode_equations_data = load_json_file("ode.json")
+        
+        # Map identifier to actual equations
+        ode_mapping = {
+            "hiv_ode": ode_equations_data["hivModel"],
+            "covid_ode": ode_equations_data["covidModel"],
+            "simple_ode": ode_equations_data["simpleModel"]
+        }
+        
+        ode_eq = ode_mapping.get(ode_equations)
+        if ode_eq is None:
+            error_msg = f"Unknown ODE equations identifier: {ode_equations}"
+            print(error_msg)
+            return error_msg
+        
+    except Exception as e:
+        error_msg = f"Error loading ODE equations: {e}"
+        print(error_msg)
+        return error_msg
     
-    # --- Stage 1: Estimation ---
+    # --- Generate simulation script ---
     separator = "\n" + "*" * 80 + "\n"
-
-    estimation_input = (
-        f"{separator}"
-        f"PROMPT: \n{ESTIMATION_PROMPT.strip()}\n"
-        f"{separator}"
-        f"ODE_EQUATIONS: \n{ode_equations.strip()}\n"
-        f"{separator}"
-    )
-
-    estimated_values = model.generate_content([
-        img,                 # The image object
-        estimation_input.strip()  # The text part of the prompt
-    ]).text.strip()
-
-
-    # --- Stage 2: Simulation ---
+    
     simulation_input = (
         f"{separator}"
         f"PROMPT:\n{SIMULATION_PROMPT.strip()}\n"
         f"{separator}"
-        f"ODE_EQUATIONS:\n{ode_equations.strip()}\n"
-        f"{separator}"
-        f"ESTIMATED_VALUES:\n{estimated_values.strip()}\n"
+        f"ODE_EQUATIONS:\n{ode_eq.strip()}\n"
         f"{separator}"
     )
 
-    simulation_script = model.generate_content(simulation_input.strip()).text.strip()
+    simulation_script_response = model.generate_content(simulation_input.strip())
+    simulation_script = simulation_script_response.text.strip()
+    print("Simulation script generated successfully.")
     
-    # --- Format and save the output ---
+    # --- Save the output ---
     try:
-        # Ensure the output directory exists
         output_dir = "simulation_scripts"
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, os.path.basename(output_fileName))
+        output_file = os.path.join(output_dir, output_fileName)
+        
         with open(output_file, "w", encoding="utf-8") as tf:
             tf.write(simulation_script)
+        
+        success_msg = f"Simulation script successfully written to {output_file}"
+        print(success_msg)
+        return success_msg
+        
     except IOError as e:
-        return f"Error writing to output file '{output_fileName}': {e}"
-
-    print(f"Simulation script successfully written to {output_fileName}")
-
-
+        error_msg = f"Error writing to output file '{output_file}': {e}"
+        print(error_msg)
+        return error_msg
 
 
+def main():
+    """Main execution function with rate limiting."""
+    
+    # Generate SEIR models
+    print("\n" + "="*80)
+    print("Generating HIV Model...")
+    print("="*80)
+    generate_seirmodel_from_image("hivModel(paper).jpeg", hivModel, "finalHivModel.txt")
+    
+    time.sleep(10)  # Rate limiting
+    
+    print("\n" + "="*80)
+    print("Generating COVID Model...")
+    print("="*80)
+    generate_seirmodel_from_image("covidModel(paper).png", covidModel, "finalCovidModel.txt")
+    
+    time.sleep(10)  # Rate limiting
+    
+    print("\n" + "="*80)
+    print("Generating Simple SIR Model...")
+    print("="*80)
+    generate_seirmodel_from_image("simpleSIRModel(paper).png", simpleModel, "finalSimpleModel.txt")
+    
+    # Uncomment to run simulations
+    # time.sleep(10)
+    # print("\n" + "="*80)
+    # print("Generating HIV Simulation...")
+    # print("="*80)
+    # simulate("hiv_ode", "hiv_simulation.py")
+    
+    # time.sleep(10)
+    # simulate("covid_ode", "covid_simulation.py")
+    
+    # time.sleep(10)
+    # simulate("simple_ode", "simple_simulation.py")
+    
+    print("\n" + "="*80)
+    print("All tasks completed!")
+    print("="*80)
 
-generate_seirmodel_from_image("hivModel(paper).jpeg", hivModel, "finalHivModel.txt")
 
-time.sleep(10) #Helps not to not burn tokens too quickly
-
-generate_seirmodel_from_image("covidModel(paper).png", covidModel, "finalCovidModel.txt")
-
-time.sleep(10) #Helps not to not burn tokens too quickly
-
-generate_seirmodel_from_image("simpleSIRModel(paper).png", simpleModel, "finalSimpleModel.txt")
-
-time.sleep(10) #Helps not to not burn tokens too quickly
-
-estimate_and_simulate(hiv_ode, "hivModel(paper).jpeg", "hiv_simulation.py")
-
-time.sleep(10) #Helps not to not burn tokens too quickly
-
-estimate_and_simulate(covid_ode, "covidModel(paper).png", "covid_simulation.py")
-
-time.sleep(10) #Helps not to not burn tokens too quickly
-
-estimate_and_simulate(simple_ode, "simpleSIRModel(paper).png", "simple_simulation.py")
+if __name__ == "__main__":
+    main()

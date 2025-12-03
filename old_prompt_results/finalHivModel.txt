@@ -1,0 +1,431 @@
+LLM1 PROMPT:
+You are an expert in XML structure generation for epidemiological models.
+
+Your task is to generate a structurally correct SEIR model in XML format using the provided **model diagram (image)** and **language specification/metamodel**.
+
+You must:
+- Focus ONLY on generating compartment and flow structure.
+- DO NOT attempt to calculate or insert any numeric rate values.
+- Instead, use a placeholder `[[rate_missing]]` for all `rate` attributes that require computation later.
+- Use 0-based indexing for compartments in the order they appear (top-down, left-to-right).
+- Follow the metamodel strictly for element names, attributes, and nesting.
+- Include all compartments and their directional flows shown in the diagram.
+
+Inputs:
+- model_diagram (image): Shows compartments and directional transitions.
+- language_specification (text): Defines the structure and rules for valid SEIR XML.
+
+Output:
+- Only the final XML file. Do not include explanations or markdown formatting.
+- Ensure all required attributes are present and validate against the provided metamodel.
+********************************************************************************
+METAMODEL:
+{
+  "seirmodel_metamodel": {
+    "structure": {
+      "xml_declaration": {
+        "version": "1.0",
+        "encoding": "UTF-8"
+      },
+      "root_element": {
+        "tag": "seir:SEIRModel",
+        "attributes": {
+          "xmi:version": "2.0",
+          "xmlns:xmi": "http://www.omg.org/XMI",
+          "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+          "xmlns:seir": "http://example.com/seirmodel"
+        }
+      },
+      "compartments": {
+        "element": "compartments",
+        "required_attributes": [
+          "PrimaryName"
+        ],
+        "optional_attributes": [
+          "SecondaryName",
+          "population"
+        ],
+        "child_elements": [
+          "outgoingFlows"
+        ]
+      },
+      "outgoingFlows": {
+        "element": "outgoingFlows",
+        "required_attributes": [
+          "rate",
+          "target"
+        ],
+        "optional_attributes": [
+          "description"
+        ],
+        "constraints": {
+          "rate": "Must be float/decimal value (Strictly avoid using any symbols). Compute a final float numeric value and not a equation. ",
+          "target": "Must be 0-based index in format '//@compartments.X'"
+        }
+      }
+    },
+    "compartment_types": {
+      "epidemiological_states": [
+        "Susceptible",
+        "Exposed",
+        "Infectious",
+        "Recovered",
+        "Deceased",
+        "Dead",
+        "Removed"
+      ],
+      "treatment_states": [
+        "Vaccinated",
+        "Treated",
+        "Hospitalized",
+        "Quarantined",
+        "Isolated"
+      ],
+      "demographic_states": [
+        "Recruitment",
+        "Birth",
+        "Immigration"
+      ],
+      "terminal_states": [
+        "Death",
+        "Natural Death",
+        "Death due to AIDS",
+        "Dead"
+      ],
+      "severity_modifiers": [
+        "Asymptomatic",
+        "Symptomatic",
+        "Mild",
+        "Moderate",
+        "Severe",
+        "Critical"
+      ],
+      "location_modifiers": [
+        "ICU",
+        "Hospital",
+        "Home",
+        "Community"
+      ]
+    },
+    "secondary_name_patterns": {
+      "demographic_groups": [
+        "Homosexual Men",
+        "Heterosexual Men",
+        "Women",
+        "Children",
+        "Adults",
+        "Elderly"
+      ],
+      "disease_progression": [
+        "presymptomatic",
+        "mild to moderate",
+        "severe",
+        "pre-ICU",
+        "post-ICU"
+      ],
+      "intervention_status": [
+        "isolated",
+        "quarantined",
+        "with ART",
+        "living with AIDS"
+      ],
+      "vaccination_status": [
+        "Vaccinated",
+        "Unvaccinated",
+        "First dose",
+        "Second dose"
+      ]
+    },
+    "flow_patterns": {
+      "common_transitions": [
+        "Susceptible \u2192 Exposed",
+        "Exposed \u2192 Infectious",
+        "Infectious \u2192 Recovered",
+        "Infectious \u2192 Dead",
+        "All non-terminal compartment \u2192 Natural Death"
+      ],
+      "rate_types": {
+        "transmission_rates": [
+          "\u03b2 * c * I / N",
+          "\u03bb",
+          "force of infection",
+          "contact-based rate"
+        ],
+        "progression_rates": [
+          "\u03c3",
+          "\u03b3",
+          "\u03b1",
+          "transition rate"
+        ],
+        "death_rates": [
+          "\u03bc",
+          "d",
+          "mortality rate"
+        ],
+        "recovery_rates": [
+          "\u03b3",
+          "recovery rate"
+        ],
+        "birth_rates": [
+          "\u03a8",
+          "birth rate",
+          "recruitment rate"
+        ]
+      }
+    },
+    "validation_rules": {
+      "Inflow": "The inflow to a compartment which doesn't have a source, example Recuirment or Birth etc.. are not supported by our model so you need to skip them or flag a error in the comment",
+      "compartment_uniqueness": "Each (PrimaryName, SecondaryName) pair must be unique",
+      "index_consistency": "Target indices must reference existing compartments",
+      "rate_format": "All rates must be numeric (Strictly avoid using any symbols). Compute a final float numeric value and not a equation.",
+      "terminal_compartments": "Terminal compartments have no outgoing flows",
+      "description": "even though description is option, it would be very helpful if each flow has a breif description explain the purpose of this flow."
+    }
+  }
+}
+********************************************************************************
+User Input:
+Table of Compartments
+Index, Primary Name, Description
+1, S_h(t), Susceptible homosexual men
+2, I_h(t), Untreated infected homosexual men
+3, S_w(t), Susceptible women
+4, I_w(t), Untreated infected women
+5, S_m(t), Susceptible heterosexual men
+6, I_m(t), Untreated infected heterosexual men
+7, T(t), Individuals treated with antiretrovirals
+8, A(t), People living with AIDS
+
+Table of Flows with Variables
+From -> To, Description, Rate Expression / Parameter
+∅ -> S_h, Recruitment of susceptible homosexual men, Ψθ(1-γ)
+∅ -> S_w, Recruitment of susceptible women, Ψ(1-θ)
+∅ -> S_m, Recruitment of susceptible heterosexual men, Ψθγ
+S_h -> I_h, Infection of susceptible homosexual men, λ_h * S_h
+S_w -> I_w, Infection of susceptible women, (λ_m + λ_hw) * S_w
+S_m -> I_m, Infection of susceptible heterosexual men, (λ_w + λ_hm) * S_m
+I_h, I_w, I_m -> T, Initial treatment of infected individuals, αp(I_h + I_w + I_m)
+I_h, I_w, I_m -> A, Progression to AIDS for untreated individuals, α(1-p)(I_h + I_w + I_m)
+T -> A, Progression to AIDS for treated individuals (e.g., treatment failure), δT
+All -> death, Natural mortality, μ for each compartment
+A -> death, AIDS-induced mortality, dA
+
+Table of Parameters
+Parameter, Meaning, Value (from paper)
+Ψ, Recruitment rate into the susceptible population, 333 individuals/year
+θ, Proportion of men in the population, 0.48
+γ, Proportion of heterosexual men among all men, 0.92
+p, Proportion of infected individuals who receive initial treatment, 0.90
+μ, Natural mortality rate, 0.0129 per year
+d, AIDS-induced mortality rate, 0.3333 per year
+δ, Rate of AIDS development in treated individuals, 0.018 per year
+α, Departure rate from infected compartments, 0.3333 per year
+β_s, Probability of heterosexual transmission, 0.02
+β_h, Probability of homosexual transmission, 0.44
+β_hw, Probability of transmission from homosexual men to women, 0.018 (Assumed)
+β_hm, Probability of transmission from homosexual men to heterosexual men, 0.25 (Assumed)
+c_s, Rate of sexual partners for heterosexuals, 4 per year
+c_h, Rate of sexual partners for homosexuals, 7 per year
+c_hw, Rate of sexual partners between homosexual men and women, 2 per year
+c_hm, Rate of sexual partners between homosexual and heterosexual men, 1 per year
+********************************************************************************
+LLM1 RESPONSE:
+ ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <compartments PrimaryName="Susceptible" SecondaryName="Homosexual Men">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.3" description="Infection of susceptible homosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Susceptible" SecondaryName="Women">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.4" description="Infection of susceptible women"/>
+  </compartments>
+  <compartments PrimaryName="Susceptible" SecondaryName="Heterosexual Men">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.5" description="Infection of susceptible heterosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Homosexual Men">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.6" description="Initial treatment of infected homosexual men"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS for untreated homosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Women">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.6" description="Initial treatment of infected women"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS for untreated women"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Heterosexual Men">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.6" description="Initial treatment of infected heterosexual men"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS for untreated heterosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Treated">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.7" description="Progression to AIDS for treated individuals"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS"/>
+</seir:SEIRModel>
+```
+********************************************************************************
+
+********************************************************************************
+LLM2 PROMPT:
+You are an expert at interpreting epidemiological equations and inserting computed rates into XML model files.
+
+You are given:
+1. A partially completed SEIR XML file, where all rate fields are marked as [[rate_missing]].
+2. A user_input section that includes all relevant parameter values, formulas, and **explicit population data (e.g., S, I, N)** if required for calculations.
+
+YOUR TASK:
+1. Identify each [[rate_missing]] inside an <outgoingFlows> tag.
+2. Use the description and flow direction (source → target) to determine which rate formula applies.
+3. Compute the rate using the correct formula and **ONLY THE VALUES EXPLICITLY PROVIDED in the user_input**.
+   - For contact-based flows (e.g., βSI/N), use the **exact population values (S, I, N)** given in the user_input.
+   - **CRITICAL: If any variable (like N, S, or I for contact rates) required for computation is NOT explicitly provided in the user_input, you MUST NOT assume a value or attempt to derive it. Instead, leave a clear comment stating the missing variable and why the rate cannot be computed.**
+4. Before writing the rate, first add a detailed comment explaining your full reasoning.
+5. Then insert the final computed value as the rate.
+
+IMPORTANT RULES:
+- Do not round — use full numerical precision at all times.
+- **DO NOT modify the XML structure, tags, or ANY EXISTING ATTRIBUTES (e.g., 'target', 'description') in the provided XML file.** Your ONLY task is to calculate and insert the 'rate' value and add comprehensive comments.
+- If a rate cannot be computed (due to missing data, as per Rule 3), leave a clear comment:
+    ``
+
+How to Write Reasoning (Baby-Step Style):
+  For each <outgoingFlows> you process:
+    First, add a full step-by-step comment above the rate:
+      - Use simple language, no skipped math
+      - Treat it like teaching someone new to equations
+      - Explain each substitution and operation clearly
+      - Then, insert the rate based on that computation.
+  Example:
+
+        <outgoingFlows rate="18" target="//@compartments.3" description="Example flow">
+      </outgoingFlows>
+
+
+Final Note: Your only task is to calculate and insert correct rate values. Please Do not add, remove, or reorder compartments or flows. Also don't change the target parameter in any ongoingrate tag.
+********************************************************************************
+USER INPUT AND LLM1'S RESPONSE (THE STRCTURALLY CORRECT SEIRMODEL) GOES HERE...
+********************************************************************************
+LLM2'S RESPONSE:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <compartments PrimaryName="Susceptible" SecondaryName="Homosexual Men">
+    <!--
+      The rate for this flow is for the "Infection of susceptible homosexual men".
+      The corresponding formula is based on the force of infection, lambda_h (λ_h).
+      The per-capita rate is λ_h.
+      The formula for the force of infection on homosexual men is: λ_h = β_h * c_h * (I_h / N_h), where N_h is the total population of homosexual men (S_h + I_h).
+      The parameters β_h (0.44) and c_h (7) are provided.
+      However, the computation requires the explicit population counts for the number of infected homosexual men (I_h) and susceptible homosexual men (S_h) to calculate the total N_h.
+      These population values (I_h, S_h) were NOT provided in the user_input.
+      Therefore, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.3" description="Infection of susceptible homosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Susceptible" SecondaryName="Women">
+    <!--
+      The rate for this flow is for the "Infection of susceptible women".
+      The corresponding formula is based on the sum of forces of infection from heterosexual men (λ_m) and homosexual men (λ_hw).
+      The per-capita rate is λ_m + λ_hw.
+      The formula for λ_m is: β_s * c_s * (I_m / (S_m + I_m)).
+      The formula for λ_hw is: β_hw * c_hw * (I_h / (S_h + I_h)).
+      The parameters β_s (0.02), c_s (4), β_hw (0.018), and c_hw (2) are provided.
+      However, the computation requires the explicit population counts for infected heterosexual men (I_m), susceptible heterosexual men (S_m), infected homosexual men (I_h), and susceptible homosexual men (S_h).
+      These population values were NOT provided in the user_input.
+      Therefore, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.4" description="Infection of susceptible women"/>
+  </compartments>
+  <compartments PrimaryName="Susceptible" SecondaryName="Heterosexual Men">
+    <!--
+      The rate for this flow is for the "Infection of susceptible heterosexual men".
+      The corresponding formula is based on the sum of forces of infection from women (λ_w) and homosexual men (λ_hm).
+      The per-capita rate is λ_w + λ_hm.
+      The formula for λ_w is: β_s * c_s * (I_w / (S_w + I_w)).
+      The formula for λ_hm is: β_hm * c_hm * (I_h / (S_h + I_h)).
+      The parameters β_s (0.02), c_s (4), β_hm (0.25), and c_hm (1) are provided.
+      However, the computation requires the explicit population counts for infected women (I_w), susceptible women (S_w), infected homosexual men (I_h), and susceptible homosexual men (S_h).
+      These population values were NOT provided in the user_input.
+      Therefore, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.5" description="Infection of susceptible heterosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Homosexual Men">
+    <!--
+      This flow represents the "Initial treatment of infected homosexual men".
+      The per-capita rate for an untreated individual to start treatment is given by the product of the departure rate from infected compartments (α) and the proportion of infected individuals who receive treatment (p).
+      Step 1: Identify the parameter α, the departure rate from infected compartments. α = 0.3333.
+      Step 2: Identify the parameter p, the proportion receiving treatment. p = 0.90.
+      Step 3: The formula for the rate is α * p.
+      Step 4: Substitute the values: rate = 0.3333 * 0.90.
+      Step 5: Calculate the final rate: rate = 0.29997.
+    -->
+    <outgoingFlows rate="0.29997" target="//@compartments.6" description="Initial treatment of infected homosexual men"/>
+    <!--
+      This flow represents the "Progression to AIDS for untreated homosexual men".
+      The per-capita rate for an untreated individual to progress to AIDS is given by the product of the departure rate from infected compartments (α) and the proportion of infected individuals who do NOT receive treatment (1-p).
+      Step 1: Identify the parameter α, the departure rate from infected compartments. α = 0.3333.
+      Step 2: Identify the parameter p, the proportion receiving treatment. p = 0.90.
+      Step 3: Calculate the proportion NOT receiving treatment: (1 - p) = 1 - 0.90 = 0.10.
+      Step 4: The formula for the rate is α * (1 - p).
+      Step 5: Substitute the values: rate = 0.3333 * 0.10.
+      Step 6: Calculate the final rate: rate = 0.03333.
+    -->
+    <outgoingFlows rate="0.03333" target="//@compartments.7" description="Progression to AIDS for untreated homosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Women">
+    <!--
+      This flow represents the "Initial treatment of infected women".
+      The per-capita rate for an untreated individual to start treatment is given by the product of the departure rate from infected compartments (α) and the proportion of infected individuals who receive treatment (p).
+      Step 1: Identify the parameter α, the departure rate from infected compartments. α = 0.3333.
+      Step 2: Identify the parameter p, the proportion receiving treatment. p = 0.90.
+      Step 3: The formula for the rate is α * p.
+      Step 4: Substitute the values: rate = 0.3333 * 0.90.
+      Step 5: Calculate the final rate: rate = 0.29997.
+    -->
+    <outgoingFlows rate="0.29997" target="//@compartments.6" description="Initial treatment of infected women"/>
+    <!--
+      This flow represents the "Progression to AIDS for untreated women".
+      The per-capita rate for an untreated individual to progress to AIDS is given by the product of the departure rate from infected compartments (α) and the proportion of infected individuals who do NOT receive treatment (1-p).
+      Step 1: Identify the parameter α, the departure rate from infected compartments. α = 0.3333.
+      Step 2: Identify the parameter p, the proportion receiving treatment. p = 0.90.
+      Step 3: Calculate the proportion NOT receiving treatment: (1 - p) = 1 - 0.90 = 0.10.
+      Step 4: The formula for the rate is α * (1 - p).
+      Step 5: Substitute the values: rate = 0.3333 * 0.10.
+      Step 6: Calculate the final rate: rate = 0.03333.
+    -->
+    <outgoingFlows rate="0.03333" target="//@compartments.7" description="Progression to AIDS for untreated women"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Heterosexual Men">
+    <!--
+      This flow represents the "Initial treatment of infected heterosexual men".
+      The per-capita rate for an untreated individual to start treatment is given by the product of the departure rate from infected compartments (α) and the proportion of infected individuals who receive treatment (p).
+      Step 1: Identify the parameter α, the departure rate from infected compartments. α = 0.3333.
+      Step 2: Identify the parameter p, the proportion receiving treatment. p = 0.90.
+      Step 3: The formula for the rate is α * p.
+      Step 4: Substitute the values: rate = 0.3333 * 0.90.
+      Step 5: Calculate the final rate: rate = 0.29997.
+    -->
+    <outgoingFlows rate="0.29997" target="//@compartments.6" description="Initial treatment of infected heterosexual men"/>
+    <!--
+      This flow represents the "Progression to AIDS for untreated heterosexual men".
+      The per-capita rate for an untreated individual to progress to AIDS is given by the product of the departure rate from infected compartments (α) and the proportion of infected individuals who do NOT receive treatment (1-p).
+      Step 1: Identify the parameter α, the departure rate from infected compartments. α = 0.3333.
+      Step 2: Identify the parameter p, the proportion receiving treatment. p = 0.90.
+      Step 3: Calculate the proportion NOT receiving treatment: (1 - p) = 1 - 0.90 = 0.10.
+      Step 4: The formula for the rate is α * (1 - p).
+      Step 5: Substitute the values: rate = 0.3333 * 0.10.
+      Step 6: Calculate the final rate: rate = 0.03333.
+    -->
+    <outgoingFlows rate="0.03333" target="//@compartments.7" description="Progression to AIDS for untreated heterosexual men"/>
+  </compartments>
+  <compartments PrimaryName="Treated">
+    <!--
+      This flow represents the "Progression to AIDS for treated individuals".
+      The per-capita rate for a treated individual to progress to AIDS (e.g., due to treatment failure) is given by the parameter δ.
+      Step 1: Identify the parameter δ, the rate of AIDS development in treated individuals.
+      Step 2: The value of δ is 0.018.
+      Step 3: The rate is therefore 0.018.
+    -->
+    <outgoingFlows rate="0.018" target="//@compartments.7" description="Progression to AIDS for treated individuals"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS"/>
+</seir:SEIRModel>
+```

@@ -1,0 +1,526 @@
+LLM1 PROMPT:
+You are an expert in XML structure generation for epidemiological models.
+
+Your task is to generate a structurally correct SEIR model in XML format using the provided **model diagram (image)** and **language specification/metamodel**.
+
+You must:
+- Focus ONLY on generating compartment and flow structure.
+- DO NOT attempt to calculate or insert any numeric rate values.
+- Instead, use a placeholder `[[rate_missing]]` for all `rate` attributes that require computation later.
+- Use 0-based indexing for compartments in the order they appear (top-down, left-to-right).
+- Follow the metamodel strictly for element names, attributes, and nesting.
+- Include all compartments and their directional flows shown in the diagram.
+
+Inputs:
+- model_diagram (image): Shows compartments and directional transitions.
+- language_specification (text): Defines the structure and rules for valid SEIR XML.
+
+Output:
+- Only the final XML file. Do not include explanations or markdown formatting.
+- Ensure all required attributes are present and validate against the provided metamodel.
+********************************************************************************
+METAMODEL:
+{
+  "seirmodel_metamodel": {
+    "structure": {
+      "xml_declaration": {
+        "version": "1.0",
+        "encoding": "UTF-8"
+      },
+      "root_element": {
+        "tag": "seir:SEIRModel",
+        "attributes": {
+          "xmi:version": "2.0",
+          "xmlns:xmi": "http://www.omg.org/XMI",
+          "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+          "xmlns:seir": "http://example.com/seirmodel"
+        }
+      },
+      "compartments": {
+        "element": "compartments",
+        "required_attributes": [
+          "PrimaryName"
+        ],
+        "optional_attributes": [
+          "SecondaryName",
+          "population"
+        ],
+        "child_elements": [
+          "outgoingFlows"
+        ]
+      },
+      "outgoingFlows": {
+        "element": "outgoingFlows",
+        "required_attributes": [
+          "rate",
+          "target"
+        ],
+        "optional_attributes": [
+          "description"
+        ],
+        "constraints": {
+          "rate": "Must be float/decimal value (Strictly avoid using any symbols). Compute a final float numeric value and not a equation. ",
+          "target": "Must be 0-based index in format '//@compartments.X'"
+        }
+      }
+    },
+    "compartment_types": {
+      "epidemiological_states": [
+        "Susceptible",
+        "Exposed",
+        "Infectious",
+        "Recovered",
+        "Deceased",
+        "Dead",
+        "Removed"
+      ],
+      "treatment_states": [
+        "Vaccinated",
+        "Treated",
+        "Hospitalized",
+        "Quarantined",
+        "Isolated"
+      ],
+      "demographic_states": [
+        "Recruitment",
+        "Birth",
+        "Immigration"
+      ],
+      "terminal_states": [
+        "Death",
+        "Natural Death",
+        "Death due to AIDS",
+        "Dead"
+      ],
+      "severity_modifiers": [
+        "Asymptomatic",
+        "Symptomatic",
+        "Mild",
+        "Moderate",
+        "Severe",
+        "Critical"
+      ],
+      "location_modifiers": [
+        "ICU",
+        "Hospital",
+        "Home",
+        "Community"
+      ]
+    },
+    "secondary_name_patterns": {
+      "demographic_groups": [
+        "Homosexual Men",
+        "Heterosexual Men",
+        "Women",
+        "Children",
+        "Adults",
+        "Elderly"
+      ],
+      "disease_progression": [
+        "presymptomatic",
+        "mild to moderate",
+        "severe",
+        "pre-ICU",
+        "post-ICU"
+      ],
+      "intervention_status": [
+        "isolated",
+        "quarantined",
+        "with ART",
+        "living with AIDS"
+      ],
+      "vaccination_status": [
+        "Vaccinated",
+        "Unvaccinated",
+        "First dose",
+        "Second dose"
+      ]
+    },
+    "flow_patterns": {
+      "common_transitions": [
+        "Susceptible \u2192 Exposed",
+        "Exposed \u2192 Infectious",
+        "Infectious \u2192 Recovered",
+        "Infectious \u2192 Dead",
+        "All non-terminal compartment \u2192 Natural Death"
+      ],
+      "rate_types": {
+        "transmission_rates": [
+          "\u03b2 * c * I / N",
+          "\u03bb",
+          "force of infection",
+          "contact-based rate"
+        ],
+        "progression_rates": [
+          "\u03c3",
+          "\u03b3",
+          "\u03b1",
+          "transition rate"
+        ],
+        "death_rates": [
+          "\u03bc",
+          "d",
+          "mortality rate"
+        ],
+        "recovery_rates": [
+          "\u03b3",
+          "recovery rate"
+        ],
+        "birth_rates": [
+          "\u03a8",
+          "birth rate",
+          "recruitment rate"
+        ]
+      }
+    },
+    "validation_rules": {
+      "Inflow": "The inflow to a compartment which doesn't have a source, example Recuirment or Birth etc.. are not supported by our model so you need to skip them or flag a error in the comment",
+      "compartment_uniqueness": "Each (PrimaryName, SecondaryName) pair must be unique",
+      "index_consistency": "Target indices must reference existing compartments",
+      "rate_format": "All rates must be numeric (Strictly avoid using any symbols). Compute a final float numeric value and not a equation.",
+      "terminal_compartments": "Terminal compartments have no outgoing flows",
+      "description": "even though description is option, it would be very helpful if each flow has a breif description explain the purpose of this flow."
+    }
+  }
+}
+********************************************************************************
+User Input:
+Table of Compartments
+
+Index: 1, Primary Name: Susceptible, Description: Individuals who can be infected
+Index: 2, Primary Name: Exposed, Description: Individuals who have been exposed to the virus but are not yet infectious
+Index: 3, Primary Name: Exposed (quarantined), Description: Exposed individuals identified via contact tracing and placed in quarantine
+Index: 4, Primary Name: Infectious (presymptomatic), Description: Individuals who are infectious but have not yet developed symptoms
+Index: 5, Primary Name: Infectious (presymptomatic, isolated), Description: Presymptomatic individuals who are in isolation
+Index: 6, Primary Name: Infectious (mild to moderate), Description: Individuals with mild to moderate symptoms who are infectious
+Index: 7, Primary Name: Infectious (mild to moderate, isolated), Description: Individuals with mild to moderate symptoms who are in isolation
+Index: 8, Primary Name: Infectious (severe), Description: Individuals with severe symptoms requiring hospital admission
+Index: 9, Primary Name: Infectious (severe, isolated), Description: Individuals with severe symptoms who are in isolation
+Index: 10, Primary Name: Isolated, Description: A state for individuals with mild to moderate illness who are isolated and not hospitalized
+Index: 11, Primary Name: Admitted to hospital (pre-ICU), Description: Individuals admitted to the hospital but not yet in the ICU
+Index: 12, Primary Name: ICU, Description: Individuals admitted to the Intensive Care Unit
+Index: 13, Primary Name: Admitted to hospital (post-ICU), Description: Individuals who have left the ICU but are still in the hospital
+Index: 14, Primary Name: Recovered, Description: Individuals who have recovered and are assumed to be immune for the model's duration
+Index: 15, Primary Name: Dead, Description: Individuals who have died from the infection; all deaths are assumed to occur in cases requiring intensive care
+Table of Flows with Variables
+
+From → To: Susceptible → Exposed, Description: Infection of a susceptible person, Governing Parameter / Rate: Governed by the basic reproduction number (R0) and contact patterns
+From → To: Exposed → Infectious (presymptomatic), Description: End of latency period, becoming infectious, Governing Parameter / Rate: 1 / (Latent period)
+From → To: Exposed → Exposed (quarantined), Description: Quarantine of exposed individuals, Governing Parameter / Rate: Percentage of exposed cases quarantined (varies by scenario)
+From → To: Infectious (presymptomatic) → Infectious (mild to moderate OR severe), Description: End of presymptomatic period and onset of symptoms, Governing Parameter / Rate: 1 / (Presymptomatic infectious period)
+From → To: Infectious → Isolated (various states), Description: Isolation of non-severe infectious cases due to testing, Governing Parameter / Rate: Percentage of non-quarantined cases tested and isolated (varies by age and scenario)
+From → To: Infectious (mild to moderate) → Recovered, Description: Recovery from mild/moderate infection, Governing Parameter / Rate: 1 / (Infectious period for mild to moderate cases)
+From → To: Infectious (severe) → Admitted to hospital (pre-ICU), Description: Hospital admission for severe cases, Governing Parameter / Rate: 1 / (Infectious period for severe cases)
+From → To: Admitted to hospital (pre-ICU) → ICU, Description: Admission to ICU from a hospital bed, Governing Parameter / Rate: 1 / (Average length of stay in hospital before ICU)
+From → To: Admitted to hospital (pre-ICU) → Recovered, Description: Recovery for hospitalized cases not requiring ICU, Governing Parameter / Rate: 1 / (Average length of stay in hospital for non-ICU cases)
+From → To: ICU → Admitted to hospital (post-ICU), Description: Discharge from ICU to a hospital bed, Governing Parameter / Rate: 1 / (Average length of stay in ICU)
+From → To: ICU → Dead, Description: Death in cases admitted to ICU, Governing Parameter / Rate: Probability of death in ICU cases (varies by age and comorbidity)
+From → To: Admitted to hospital (post-ICU) → Recovered, Description: Recovery after ICU stay, Governing Parameter / Rate: 1 / (Average length of stay in hospital after ICU)
+Table of Parameters
+
+Parameter: Latent period, Meaning: Time from exposure to becoming infectious, Value (from paper): 2.5 days
+Parameter: Presymptomatic infectious period, Meaning: Duration of infectiousness before symptom onset, Value (from paper): 1 day
+Parameter: Infectious period (mild to moderate), Meaning: Duration of infectiousness for mild-to-moderate cases, Value (from paper): 6 days
+Parameter: Infectious period (severe), Meaning: Time from symptom onset to hospital admission for severe cases, Value (from paper): 6 days
+Parameter: Basic reproduction number (R0), Meaning: Average secondary infections from a primary case in a susceptible population, Value (from paper): 2.3
+Parameter: Relative risk of transmission (isolated), Meaning: Reduction in transmission for isolated cases compared to non-isolated cases, Value (from paper): 0.1 (Assumption)
+Parameter: Reduction in contacts, Meaning: Reduction in daily contacts due to physical distancing, Value (from paper): 60% (Physical distancing scenario) or 25% (Combination scenario)
+Parameter: % Non-quarantined cases tested/isolated, Meaning: Percentage of infectious cases isolated (varies by age and scenario), Value (from paper): 10-80%
+Parameter: % Exposed cases quarantined, Meaning: Percentage of exposed contacts who are quarantined, Value (from paper): 10% (Base case) or 30% (Enhanced detection/Combination scenarios)
+Parameter: Probability of severe infection, Meaning: Chance of developing severe infection requiring hospitalization (varies by age/comorbidity), Value (from paper): 0.01 - 0.76
+Parameter: Probability severe case requires ICU, Meaning: Chance a severe case is admitted to the ICU, Value (from paper): 0.26
+Parameter: Probability of death in ICU, Meaning: Chance of death for an ICU patient (varies by age/comorbidity), Value (from paper): 0 - 1.0
+Parameter: Length of stay (non-ICU), Meaning: Average hospital stay for cases not requiring ICU, Value (from paper): 10 days
+Parameter: Length of stay (pre-ICU), Meaning: Average hospital stay before ICU admission, Value (from paper): 3 days
+Parameter: Length of stay (in ICU), Meaning: Average duration of ICU stay, Value (from paper): 21 days
+Parameter: Length of stay (post-ICU), Meaning: Average hospital stay after leaving the ICU, Value (from paper): 21 days
+********************************************************************************
+LLM1 RESPONSE:
+ ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <compartments PrimaryName="Susceptible">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.1"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.2"/>
+  </compartments>
+  <compartments PrimaryName="Exposed">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.3"/>
+  </compartments>
+  <compartments PrimaryName="Exposed" SecondaryName="quarantined">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.4"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="presymptomatic">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.5"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.6"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="presymptomatic, isolated">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.7"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.8"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="mild to moderate">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.9"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="severe">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.10"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="mild to moderate, isolated">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="severe, isolated">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.10"/>
+  </compartments>
+  <compartments PrimaryName="Isolated">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Hospitalized" SecondaryName="pre-ICU">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.11"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Hospitalized" SecondaryName="ICU">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.12"/>
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.14"/>
+  </compartments>
+  <compartments PrimaryName="Hospitalized" SecondaryName="post-ICU">
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Recovered"/>
+  <compartments PrimaryName="Dead"/>
+</seir:SEIRModel>
+```
+********************************************************************************
+
+********************************************************************************
+LLM2 PROMPT:
+You are an expert at interpreting epidemiological equations and inserting computed rates into XML model files.
+
+You are given:
+1. A partially completed SEIR XML file, where all rate fields are marked as [[rate_missing]].
+2. A user_input section that includes all relevant parameter values, formulas, and **explicit population data (e.g., S, I, N)** if required for calculations.
+
+YOUR TASK:
+1. Identify each [[rate_missing]] inside an <outgoingFlows> tag.
+2. Use the description and flow direction (source → target) to determine which rate formula applies.
+3. Compute the rate using the correct formula and **ONLY THE VALUES EXPLICITLY PROVIDED in the user_input**.
+   - For contact-based flows (e.g., βSI/N), use the **exact population values (S, I, N)** given in the user_input.
+   - **CRITICAL: If any variable (like N, S, or I for contact rates) required for computation is NOT explicitly provided in the user_input, you MUST NOT assume a value or attempt to derive it. Instead, leave a clear comment stating the missing variable and why the rate cannot be computed.**
+4. Before writing the rate, first add a detailed comment explaining your full reasoning.
+5. Then insert the final computed value as the rate.
+
+IMPORTANT RULES:
+- Do not round — use full numerical precision at all times.
+- **DO NOT modify the XML structure, tags, or ANY EXISTING ATTRIBUTES (e.g., 'target', 'description') in the provided XML file.** Your ONLY task is to calculate and insert the 'rate' value and add comprehensive comments.
+- If a rate cannot be computed (due to missing data, as per Rule 3), leave a clear comment:
+    ``
+
+How to Write Reasoning (Baby-Step Style):
+  For each <outgoingFlows> you process:
+    First, add a full step-by-step comment above the rate:
+      - Use simple language, no skipped math
+      - Treat it like teaching someone new to equations
+      - Explain each substitution and operation clearly
+      - Then, insert the rate based on that computation.
+  Example:
+
+        <outgoingFlows rate="18" target="//@compartments.3" description="Example flow">
+      </outgoingFlows>
+
+
+Final Note: Your only task is to calculate and insert correct rate values. Please Do not add, remove, or reorder compartments or flows. Also don't change the target parameter in any ongoingrate tag.
+********************************************************************************
+USER INPUT AND LLM1'S RESPONSE (THE STRCTURALLY CORRECT SEIRMODEL) GOES HERE...
+********************************************************************************
+LLM2'S RESPONSE:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <compartments PrimaryName="Susceptible">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents infection, moving from 'Susceptible' (S) to 'Exposed' (E).
+     2.  Governing Formula: Infection is a contact-based process, typically calculated as (β * I) / N, where β is the transmission rate, I is the number of infectious individuals, S is the number of susceptible individuals, and N is the total population.
+     3.  Missing Variables: The calculation requires explicit population values for the number of infectious individuals (I) and the total population (N).
+     4.  Conclusion: These population values (I, N) were NOT provided in the user_input section. Therefore, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.1"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow moves from 'Susceptible' to 'Exposed (quarantined)'.
+     2.  Governing Formula: The user input does not provide a specific formula for a direct flow from Susceptible to a quarantined state. Such a flow would likely be a contact-based process, similar to the main infection flow.
+     3.  Missing Variables: A contact-based calculation requires explicit population values for the number of infectious individuals (I) and the total population (N).
+     4.  Conclusion: No formula is provided for this specific flow, and the necessary population variables (I, N) for any contact-based rate are also missing from the user_input. Therefore, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.2"/>
+  </compartments>
+  <compartments PrimaryName="Exposed">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the end of the latency period, moving from 'Exposed' to 'Infectious (presymptomatic)'.
+     2.  Governing Formula: The rate is the inverse of the latent period, which is 1 / (Latent period).
+     3.  Parameter Value: From the user_input, the 'Latent period' is 2.5 days.
+     4.  Calculation: Rate = 1 / 2.5 = 0.4.
+    -->
+    <outgoingFlows rate="0.4" target="//@compartments.3"/>
+  </compartments>
+  <compartments PrimaryName="Exposed" SecondaryName="quarantined">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the end of the latency period for quarantined individuals, moving from 'Exposed (quarantined)' to 'Infectious (presymptomatic, isolated)'.
+     2.  Governing Formula: The underlying biological process is the same as for non-quarantined individuals. The rate is the inverse of the latent period: 1 / (Latent period).
+     3.  Parameter Value: From the user_input, the 'Latent period' is 2.5 days.
+     4.  Calculation: Rate = 1 / 2.5 = 0.4.
+    -->
+    <outgoingFlows rate="0.4" target="//@compartments.4"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="presymptomatic">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the onset of mild/moderate symptoms, moving from 'Infectious (presymptomatic)' to 'Infectious (mild to moderate)'.
+     2.  Governing Formula: The rate is (1 / Presymptomatic_period) * (1 - Probability_of_severe_infection).
+     3.  Missing Variables: The user_input provides 'Probability of severe infection' as a range (0.01 - 0.76), not a single, specific value. The calculation requires a single value for this probability.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.5"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the onset of severe symptoms, moving from 'Infectious (presymptomatic)' to 'Infectious (severe)'.
+     2.  Governing Formula: The rate is (1 / Presymptomatic_period) * (Probability_of_severe_infection).
+     3.  Missing Variables: The user_input provides 'Probability of severe infection' as a range (0.01 - 0.76), not a single, specific value. The calculation requires a single value for this probability.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.6"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="presymptomatic, isolated">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the onset of mild/moderate symptoms for an isolated individual, moving from 'Infectious (presymptomatic, isolated)' to 'Infectious (mild to moderate, isolated)'.
+     2.  Governing Formula: The rate is (1 / Presymptomatic_period) * (1 - Probability_of_severe_infection).
+     3.  Missing Variables: The user_input provides 'Probability of severe infection' as a range (0.01 - 0.76), not a single, specific value. The calculation requires a single value for this probability.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.7"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the onset of severe symptoms for an isolated individual, moving from 'Infectious (presymptomatic, isolated)' to 'Infectious (severe, isolated)'.
+     2.  Governing Formula: The rate is (1 / Presymptomatic_period) * (Probability_of_severe_infection).
+     3.  Missing Variables: The user_input provides 'Probability of severe infection' as a range (0.01 - 0.76), not a single, specific value. The calculation requires a single value for this probability.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.8"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="mild to moderate">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents the isolation of an infectious individual, moving from 'Infectious (mild to moderate)' to 'Isolated'.
+     2.  Governing Formula: The rate is governed by the '% Non-quarantined cases tested/isolated'.
+     3.  Missing Variables: The user_input provides this parameter as a range (10-80%), not a single, specific value.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.9"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents recovery from a mild infection, moving from 'Infectious (mild to moderate)' to 'Recovered'.
+     2.  Governing Formula: The rate is the inverse of the infectious period for mild cases, which is 1 / (Infectious period (mild to moderate)).
+     3.  Parameter Value: From the user_input, the 'Infectious period (mild to moderate)' is 6 days.
+     4.  Calculation: Rate = 1 / 6 = 0.16666666666666666.
+    -->
+    <outgoingFlows rate="0.16666666666666666" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="severe">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents hospital admission for a severe case, moving from 'Infectious (severe)' to 'Admitted to hospital (pre-ICU)'.
+     2.  Governing Formula: The rate is the inverse of the infectious period for severe cases, which is 1 / (Infectious period (severe)). This represents the time from symptom onset to hospital admission.
+     3.  Parameter Value: From the user_input, the 'Infectious period (severe)' is 6 days.
+     4.  Calculation: Rate = 1 / 6 = 0.16666666666666666.
+    -->
+    <outgoingFlows rate="0.16666666666666666" target="//@compartments.10"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow moves from 'Infectious (severe)' to 'Recovered'.
+     2.  Governing Formula: The "Table of Flows with Variables" in the user input does not describe a direct flow from 'Infectious (severe)' to 'Recovered'. Recovery from severe illness is described as occurring after hospitalization.
+     3.  Conclusion: The governing formula for this specific flow is not provided in the user_input. Therefore, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="mild to moderate, isolated">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents recovery for an isolated mild case, moving from 'Infectious (mild to moderate, isolated)' to 'Recovered'.
+     2.  Governing Formula: The recovery process is the same as for non-isolated cases. The rate is the inverse of the infectious period: 1 / (Infectious period (mild to moderate)).
+     3.  Parameter Value: From the user_input, the 'Infectious period (mild to moderate)' is 6 days.
+     4.  Calculation: Rate = 1 / 6 = 0.16666666666666666.
+    -->
+    <outgoingFlows rate="0.16666666666666666" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="severe, isolated">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents hospital admission for a severe case that was already isolated, moving from 'Infectious (severe, isolated)' to 'Admitted to hospital (pre-ICU)'.
+     2.  Governing Formula: The process of hospital admission is the same as for non-isolated cases. The rate is the inverse of the infectious period for severe cases: 1 / (Infectious period (severe)).
+     3.  Parameter Value: From the user_input, the 'Infectious period (severe)' is 6 days.
+     4.  Calculation: Rate = 1 / 6 = 0.16666666666666666.
+    -->
+    <outgoingFlows rate="0.16666666666666666" target="//@compartments.10"/>
+  </compartments>
+  <compartments PrimaryName="Isolated">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents recovery for individuals in the 'Isolated' state (defined as having mild to moderate illness), moving to 'Recovered'.
+     2.  Governing Formula: The rate of recovery is determined by the duration of the illness. This is equivalent to the recovery rate for any mild/moderate case: 1 / (Infectious period (mild to moderate)).
+     3.  Parameter Value: From the user_input, the 'Infectious period (mild to moderate)' is 6 days.
+     4.  Calculation: Rate = 1 / 6 = 0.16666666666666666.
+    -->
+    <outgoingFlows rate="0.16666666666666666" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Hospitalized" SecondaryName="pre-ICU">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents admission to the ICU, moving from 'Hospitalized (pre-ICU)' to 'ICU'.
+     2.  Governing Formula: This is a split flow. The rate is the inverse of the time spent in this state, multiplied by the probability of going to the ICU. The formula is (1 / Length_stay_pre-ICU) * (Probability_severe_requires_ICU).
+     3.  Parameter Values: From user_input, 'Length of stay (pre-ICU)' is 3 days and 'Probability severe case requires ICU' is 0.26.
+     4.  Calculation: Rate = (1 / 3) * 0.26 = 0.08666666666666667.
+    -->
+    <outgoingFlows rate="0.08666666666666667" target="//@compartments.11"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents recovery for a hospitalized case that does not require the ICU, moving from 'Hospitalized (pre-ICU)' to 'Recovered'.
+     2.  Governing Formula: The "Table of Flows" explicitly provides a parameter for this transition: 1 / (Average length of stay in hospital for non-ICU cases).
+     3.  Parameter Value: From the user_input, the 'Length of stay (non-ICU)' is 10 days.
+     4.  Calculation: Rate = 1 / 10 = 0.1.
+    -->
+    <outgoingFlows rate="0.1" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Hospitalized" SecondaryName="ICU">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents discharge from the ICU to a regular hospital bed, moving from 'ICU' to 'Hospitalized (post-ICU)'.
+     2.  Governing Formula: This is a split flow. The rate is (1 / Length_stay_in_ICU) * (1 - Probability_of_death_in_ICU).
+     3.  Missing Variables: The user_input provides 'Probability of death in ICU' as a range (0 - 1.0), not a single, specific value. The calculation requires a single value for this probability.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.12"/>
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents death in the ICU, moving from 'ICU' to 'Dead'.
+     2.  Governing Formula: This is a split flow. The rate is (1 / Length_stay_in_ICU) * (Probability_of_death_in_ICU).
+     3.  Missing Variables: The user_input provides 'Probability of death in ICU' as a range (0 - 1.0), not a single, specific value. The calculation requires a single value for this probability.
+     4.  Conclusion: Because a required variable is provided as a range instead of a discrete value, the rate cannot be computed.
+    -->
+    <outgoingFlows rate="[[rate_missing]]" target="//@compartments.14"/>
+  </compartments>
+  <compartments PrimaryName="Hospitalized" SecondaryName="post-ICU">
+    <!--
+     Reasoning for the rate calculation:
+     1.  Flow Direction: This flow represents recovery after an ICU stay, moving from 'Hospitalized (post-ICU)' to 'Recovered'.
+     2.  Governing Formula: The rate is the inverse of the time spent in this state, which is 1 / (Average length of stay in hospital after ICU).
+     3.  Parameter Value: From the user_input, the 'Length of stay (post-ICU)' is 21 days.
+     4.  Calculation: Rate = 1 / 21 = 0.04761904761904762.
+    -->
+    <outgoingFlows rate="0.04761904761904762" target="//@compartments.13"/>
+  </compartments>
+  <compartments PrimaryName="Recovered"/>
+  <compartments PrimaryName="Dead"/>
+</seir:SEIRModel>
+```
