@@ -31,6 +31,7 @@ models = load_json_file("models.json")
 hivModel = models["hivModel"]
 covidModel = models["covidModel"]
 simpleModel = models["simpleModel"]
+malariaModel = models["malariaModel"]
 
 
 # --- Initialize Gemini API ---
@@ -238,18 +239,25 @@ def main():
     generate_seirmodel_from_image("hivModel(paper).jpeg", hivModel, "finalHivModel.txt")
     
     time.sleep(10)  # Rate limiting
-    
+
     print("\n" + "="*80)
     print("Generating COVID Model...")
     print("="*80)
     generate_seirmodel_from_image("covidModel(paper).png", covidModel, "finalCovidModel.txt")
-    
+
     time.sleep(10)  # Rate limiting
-    
+
     print("\n" + "="*80)
     print("Generating Simple SIR Model...")
     print("="*80)
     generate_seirmodel_from_image("simpleSIRModel(paper).png", simpleModel, "finalSimpleModel.txt")
+
+    time.sleep(10)  # Rate limiting
+
+    print("\n" + "="*80)
+    print("Generating Malaria Model...")
+    print("="*80)
+    generate_seirmodel_from_image("malariaModel(paper).png", malariaModel, "finalSimpleModel.txt")
     
     # Uncomment to run simulations
     # time.sleep(10)

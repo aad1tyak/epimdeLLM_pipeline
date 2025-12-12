@@ -1,0 +1,1108 @@
+LLM1 PROMPT:
+You are an expert in XML structure generation for epidemiological models with stratification support.
+
+Your task is to generate a structurally correct SEIR model in XML format for a .seirmodel file, using the provided **model diagram (image)**, **user input**, and **language specification/metamodel**.
+
+**XML Formatting Rules**
+- You must output valid, well-formed XML.
+- Every opening tag must have a corresponding closing tag.
+- Self-closing tags MUST end with `/>`.
+- Ensure there are no stray characters or missing `>` or `/>`.
+- Do not break tags across multiple lines.
+- Before finalizing, validate the entire structure, checking for matching tag pairs, correct attribute quotes, illegal characters, and consistent indentation.
+
+**Modeling Rules**
+- **CRITICAL: Generate ONLY the flows explicitly listed in the user input's "Table of Flows with Variables". Do NOT add flows that appear in the diagram but are missing from the flow table.**
+- Focus ONLY on generating compartment and flow structure.
+- DO NOT attempt to calculate or insert any numeric rate values.
+- Instead, use a placeholder [[rate_missing]] for all rate and contactRate attributes that require computation later.
+- Use 0-based indexing for compartments in the order they appear (top-down, left-to-right).
+- Follow the metamodel strictly for element names, attributes, and nesting.
+- Include all compartments shown in the diagram, but ONLY include flows that are explicitly defined in the flow table.
+
+**Stratification Handling**
+- If the user input includes a "Stratification Structure" section, create the corresponding <groups> elements with their values.
+- If the user input includes a "Products" section, create the corresponding <products> elements.
+- If a compartment is marked as "Stratified By" in the compartment table, add the product attribute: product="//@products.X" (where X is the 0-based index).
+- If a flow has "Stratum-Specific Rates" in the flow table, create <stratumSpecificRates> child elements for each stratum listed.
+- For stratumSpecificRates, use rate="[[rate_missing]]" as a placeholder.
+
+**Flow Type Identification**
+- Use xsi:type="seir:ContactFlow" for flows marked as "ContactFlow" or involving transmission/infection terms like λ, β*I/N, or contact-based transmission.
+- For ContactFlows, set contactCompartment="//@compartments.X" pointing to the infectious compartment causing transmission.
+- Use xsi:type="seir:RateFlow" for all other flows.
+
+**Inputs:**
+- model_diagram (image): Shows compartments. USE FOR COMPARTMENT STRUCTURE ONLY.
+- user_input (text): Contains "Table of Flows with Variables" - USE THIS AS THE AUTHORITATIVE SOURCE FOR ALL FLOWS.
+- language_specification (text): Defines the structure and rules for valid SEIR XML.
+
+**Output:**
+- ONLY the final XML file. Do not include explanations or markdown formatting.
+********************************************************************************
+METAMODEL:
+{
+  "seirmodel_metamodel": {
+    "version": "2.0",
+    "description": "EpiMDE Metamodel - Supports both numeric and parametric (symbolic) modeling approaches for epidemiological compartmental models",
+    "structure": {
+      "xml_declaration": {
+        "version": "1.0",
+        "encoding": "UTF-8"
+      },
+      "root_element": {
+        "tag": "seir:SEIRModel",
+        "attributes": {
+          "xmi:version": "2.0",
+          "xmlns:xmi": "http://www.omg.org/XMI",
+          "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+          "xmlns:seir": "http://example.com/seirmodel"
+        },
+        "optional_attributes": [
+          "totalPopulation",
+          "globalBirthRate",
+          "globalDeathRate"
+        ]
+      },
+      "parameters": {
+        "element": "parameters",
+        "required_attributes": [
+          "name"
+        ],
+        "optional_attributes": [
+          "type",
+          "expression",
+          "description",
+          "unit"
+        ],
+        "description": "Named parameters for symbolic/parametric modeling. Enables separation of model structure from parameter values.",
+        "attributes": {
+          "name": {
+            "description": "Parameter identifier. Supports Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)",
+            "examples": [
+              "\u03b2\u2081",
+              "\u03bc\u2095",
+              "a(T)",
+              "\u03b2\u2082a(T)",
+              "\u03b8\u1d65(T,R)",
+              "\u03b3\u2095"
+            ]
+          },
+          "type": {
+            "description": "Parameter type: CONSTANT (default), VARIABLE, or EXPRESSION",
+            "values": [
+              "CONSTANT",
+              "VARIABLE",
+              "EXPRESSION"
+            ],
+            "default": "CONSTANT"
+          },
+          "expression": {
+            "description": "For CONSTANT/VARIABLE: numeric value. For EXPRESSION: mathematical formula referencing other parameters/compartments",
+            "examples": [
+              "0.001384",
+              "0.000203 * T * (T - 11.7) * sqrt(42.3 - T)",
+              "\u03b2\u2082 * a(T)",
+              "\u03bc\u2095 + 0.017325"
+            ]
+          },
+          "description": {
+            "description": "Human-readable explanation of the parameter",
+            "examples": [
+              "Natural mortality rate of human population",
+              "Mosquito biting rate",
+              "Recovery rate Ih to Rh"
+            ]
+          },
+          "unit": {
+            "description": "Physical unit of measurement. Supports Unicode symbols.",
+            "examples": [
+              "per day",
+              "1/time",
+              "dimensionless",
+              "\u00b0C",
+              "bites/person/time"
+            ]
+          }
+        },
+        "parameter_types": {
+          "CONSTANT": {
+            "description": "Fixed value with a name, used for model parameters that don't change during simulation",
+            "use_cases": [
+              "Natural death rates",
+              "Recovery rates",
+              "Transmission probabilities"
+            ],
+            "example": "<parameters name=\"\u03bc\u2095\" expression=\"0.001384\" description=\"Natural mortality rate\" unit=\"1/time\"/>"
+          },
+          "VARIABLE": {
+            "description": "Placeholder for values provided at simulation time, such as environmental conditions or intervention levels",
+            "use_cases": [
+              "Temperature",
+              "Rainfall",
+              "Intervention effectiveness"
+            ],
+            "example": "<parameters name=\"T\" type=\"VARIABLE\" description=\"Temperature\" unit=\"\u00b0C\"/>"
+          },
+          "EXPRESSION": {
+            "description": "Computed value defined as a mathematical expression referencing other parameters and/or compartments",
+            "use_cases": [
+              "Combined rates",
+              "Temperature-dependent rates",
+              "Death rates with disease mortality"
+            ],
+            "example": "<parameters name=\"\u03b2\u2082a(T)\" type=\"EXPRESSION\" expression=\"\u03b2\u2082 * a(T)\" description=\"Combined contact rate\" unit=\"1/time\"/>"
+          }
+        }
+      },
+      "compartments": {
+        "element": "compartments",
+        "required_attributes": [
+          "PrimaryName"
+        ],
+        "optional_attributes": [
+          "SecondaryName",
+          "population",
+          "product"
+        ],
+        "child_elements": [
+          "outgoingFlows"
+        ],
+        "constraints": {
+          "product": "Reference to product using format '//@products.X'"
+        }
+      },
+      "outgoingFlows": {
+        "abstract_element": "outgoingFlows",
+        "concrete_types": [
+          "RateFlow",
+          "ContactFlow"
+        ],
+        "common_required_attributes": [
+          "target"
+        ],
+        "common_optional_attributes": [
+          "description"
+        ],
+        "constraints": {
+          "target": "Must be 0-based index in format '//@compartments.X'"
+        }
+      },
+      "RateFlow": {
+        "element": "outgoingFlows",
+        "xsi_type": "seir:RateFlow",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "rate",
+              "target"
+            ],
+            "description": "Use numeric rate attribute directly"
+          },
+          "parametric": {
+            "required_attributes": [
+              "rateParameter",
+              "target"
+            ],
+            "description": "Reference a Parameter by index. Parameter takes precedence over numeric rate."
+          }
+        },
+        "optional_attributes": [
+          "description"
+        ],
+        "child_elements": [
+          "stratumSpecificRates"
+        ],
+        "attributes": {
+          "rate": {
+            "description": "Numeric rate value. For parametric models, set to 0.0 and use rateParameter instead.",
+            "constraint": "Must be float/decimal value"
+          },
+          "rateParameter": {
+            "description": "Reference to a Parameter defining this flow's rate. Format: '//@parameters.X' where X is 0-based index.",
+            "constraint": "Must reference existing parameter"
+          }
+        },
+        "examples": {
+          "numeric": "<outgoingFlows xsi:type=\"seir:RateFlow\" rate=\"0.120342\" target=\"//@compartments.3\"/>",
+          "parametric": "<outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.9\" target=\"//@compartments.3\"/>"
+        }
+      },
+      "ContactFlow": {
+        "element": "outgoingFlows",
+        "xsi_type": "seir:ContactFlow",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "contactRate",
+              "contactCompartment",
+              "target"
+            ],
+            "description": "Use numeric contactRate attribute directly"
+          },
+          "parametric": {
+            "required_attributes": [
+              "contactRateParameter",
+              "contactCompartment",
+              "target"
+            ],
+            "description": "Reference a Parameter by index. Parameter takes precedence over numeric contactRate."
+          }
+        },
+        "optional_attributes": [
+          "description",
+          "contactParameters"
+        ],
+        "child_elements": [
+          "stratumSpecificRates"
+        ],
+        "attributes": {
+          "contactRate": {
+            "description": "Numeric contact/transmission rate. For parametric models, set to 0.0 and use contactRateParameter instead.",
+            "constraint": "Must be float/decimal value"
+          },
+          "contactRateParameter": {
+            "description": "Reference to a Parameter defining this flow's contact rate. Format: '//@parameters.X' where X is 0-based index.",
+            "constraint": "Must reference existing parameter"
+          },
+          "contactCompartment": {
+            "description": "Reference to compartment influencing transmission (usually Infectious or Infected Mosquitoes)",
+            "constraint": "Must reference existing compartment using format '//@compartments.X'"
+          }
+        },
+        "examples": {
+          "numeric": "<outgoingFlows xsi:type=\"seir:ContactFlow\" contactRate=\"0.09636\" contactCompartment=\"//@compartments.1\" target=\"//@compartments.1\"/>",
+          "parametric": "<outgoingFlows xsi:type=\"seir:ContactFlow\" contactRateParameter=\"//@parameters.2\" contactCompartment=\"//@compartments.6\" target=\"//@compartments.1\"/>"
+        }
+      },
+      "stratumSpecificRates": {
+        "element": "stratumSpecificRates",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "stratum",
+              "rate"
+            ],
+            "optional_attributes": [
+              "multiplier"
+            ]
+          },
+          "parametric": {
+            "required_attributes": [
+              "stratum"
+            ],
+            "optional_attributes": [
+              "rateParameter",
+              "multiplierParameter"
+            ]
+          }
+        },
+        "attributes": {
+          "rate": "Numeric rate value for this stratum",
+          "rateParameter": "Reference to Parameter for this stratum's rate",
+          "multiplier": "Numeric multiplier applied to base rate (defaults to 1.0)",
+          "multiplierParameter": "Reference to Parameter for multiplier"
+        },
+        "constraints": {
+          "rate": "Must be float/decimal value",
+          "multiplier": "Must be float/decimal value, defaults to 1.0",
+          "rateParameter": "Format: '//@parameters.X'",
+          "multiplierParameter": "Format: '//@parameters.X'"
+        }
+      },
+      "birthSources": {
+        "element": "birthSources",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "name",
+              "rate",
+              "targetCompartment"
+            ]
+          },
+          "parametric": {
+            "required_attributes": [
+              "name",
+              "rateParameter",
+              "targetCompartment"
+            ]
+          }
+        },
+        "optional_attributes": [
+          "targetStratum",
+          "fixedRate"
+        ],
+        "attributes": {
+          "rate": "Numeric birth rate",
+          "rateParameter": "Reference to Parameter for birth rate. Format: '//@parameters.X'"
+        },
+        "constraints": {
+          "rate": "Must be float/decimal value",
+          "rateParameter": "Must reference existing parameter",
+          "targetCompartment": "Reference to compartment using format '//@compartments.X'",
+          "fixedRate": "Boolean value, defaults to false"
+        },
+        "examples": {
+          "numeric": "<birthSources name=\"Humans\" rate=\"15129\" targetCompartment=\"//@compartments.0\"/>",
+          "parametric": "<birthSources name=\"Humans\" rateParameter=\"//@parameters.0\" targetCompartment=\"//@compartments.0\"/>"
+        }
+      },
+      "deathSinks": {
+        "element": "deathSinks",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "name",
+              "rate",
+              "sourceCompartment"
+            ]
+          },
+          "parametric": {
+            "required_attributes": [
+              "name",
+              "rateParameter",
+              "sourceCompartment"
+            ]
+          }
+        },
+        "optional_attributes": [
+          "sourceStratum"
+        ],
+        "attributes": {
+          "rate": "Numeric death rate",
+          "rateParameter": "Reference to Parameter for death rate. Format: '//@parameters.X'"
+        },
+        "constraints": {
+          "rate": "Must be float/decimal value",
+          "rateParameter": "Must reference existing parameter",
+          "sourceCompartment": "Reference to compartment using format '//@compartments.X'"
+        },
+        "examples": {
+          "numeric": "<deathSinks name=\"Natural_Death_SH\" rate=\"0.001384\" sourceCompartment=\"//@compartments.0\"/>",
+          "parametric": "<deathSinks name=\"Natural_Death_SH\" rateParameter=\"//@parameters.5\" sourceCompartment=\"//@compartments.0\"/>"
+        }
+      },
+      "groups": {
+        "element": "groups",
+        "required_attributes": [
+          "name"
+        ],
+        "optional_attributes": [
+          "description"
+        ],
+        "child_elements": [
+          "values"
+        ],
+        "constraints": {
+          "values": "Array of string values representing the group stratification levels"
+        }
+      },
+      "products": {
+        "element": "products",
+        "required_attributes": [
+          "name"
+        ],
+        "optional_attributes": [
+          "description"
+        ],
+        "child_elements": [
+          "groups"
+        ],
+        "constraints": {
+          "groups": "Reference to groups using format '//@groups.X'"
+        }
+      }
+    },
+    "compartment_types": {
+      "epidemiological_states": [
+        "Susceptible",
+        "Exposed",
+        "Infectious",
+        "Recovered",
+        "Deceased",
+        "Dead",
+        "Removed"
+      ],
+      "treatment_states": [
+        "Vaccinated",
+        "Treated",
+        "Hospitalized",
+        "Quarantined",
+        "Isolated"
+      ],
+      "vector_states": [
+        "Susceptible Mosquitoes",
+        "Exposed Mosquitoes",
+        "Infectious Mosquitoes"
+      ],
+      "demographic_states": [
+        "Recruitment",
+        "Birth",
+        "Immigration"
+      ],
+      "terminal_states": [
+        "Death",
+        "Natural Death",
+        "Death due to AIDS",
+        "Dead"
+      ],
+      "severity_modifiers": [
+        "Asymptomatic",
+        "Symptomatic",
+        "Mild",
+        "Moderate",
+        "Severe",
+        "Critical"
+      ],
+      "location_modifiers": [
+        "ICU",
+        "Hospital",
+        "Home",
+        "Community"
+      ]
+    },
+    "secondary_name_patterns": {
+      "demographic_groups": [
+        "Homosexual Men",
+        "Heterosexual Men",
+        "Women",
+        "Children",
+        "Adults",
+        "Elderly"
+      ],
+      "disease_progression": [
+        "presymptomatic",
+        "mild to moderate",
+        "severe",
+        "pre-ICU",
+        "post-ICU"
+      ],
+      "intervention_status": [
+        "isolated",
+        "quarantined",
+        "with ART",
+        "living with AIDS"
+      ],
+      "vaccination_status": [
+        "Vaccinated",
+        "Unvaccinated",
+        "First dose",
+        "Second dose"
+      ],
+      "transmission_route": [
+        "vector",
+        "non-vector",
+        "direct",
+        "indirect"
+      ]
+    },
+    "flow_patterns": {
+      "common_transitions": [
+        "Susceptible \u2192 Exposed",
+        "Exposed \u2192 Infectious",
+        "Infectious \u2192 Recovered",
+        "Infectious \u2192 Dead",
+        "Recovered \u2192 Susceptible (loss of immunity)",
+        "Vaccinated \u2192 Susceptible (loss of vaccine immunity)",
+        "All non-terminal compartment \u2192 Natural Death"
+      ],
+      "flow_types": {
+        "RateFlow": {
+          "description": "Rate-based transition independent of other compartment populations. Supports both numeric rates and parameter references.",
+          "examples": [
+            "Exposed \u2192 Infectious (progression)",
+            "Infectious \u2192 Recovered (recovery)",
+            "Hospital \u2192 ICU (severity progression)",
+            "Recovered \u2192 Susceptible (immunity loss)"
+          ],
+          "use_numeric_when": "Model has hardcoded rates (legacy models, simple demonstrations)",
+          "use_parametric_when": "Model needs symbolic equations, parameter reuse, or matching published papers"
+        },
+        "ContactFlow": {
+          "description": "Contact-based transmission dependent on another compartment's population. Models frequency-dependent or density-dependent transmission. Supports both numeric rates and parameter references.",
+          "examples": [
+            "Susceptible \u2192 Exposed (contact with Infectious)",
+            "Susceptible Humans \u2192 Exposed Humans (contact with Infectious Mosquitoes)",
+            "Susceptible Mosquitoes \u2192 Exposed Mosquitoes (contact with Infectious Humans)"
+          ],
+          "parameters": {
+            "contactRate or contactRateParameter": "Transmission rate per contact",
+            "contactCompartment": "Source compartment for transmission (usually Infectious or vector compartment)",
+            "contactParameters": "Legacy parameter specification (deprecated)"
+          },
+          "use_numeric_when": "Simple models with constant transmission rates",
+          "use_parametric_when": "Complex transmission (temperature-dependent, combined rates, symbolic equations)"
+        }
+      },
+      "stratification": {
+        "description": "Age-based or demographic stratification using Groups and Products",
+        "stratum_specific_rates": "Different rates can be specified for each stratum within a flow. Supports both numeric and parametric approaches.",
+        "examples": {
+          "age_groups": [
+            "0-17",
+            "18-64",
+            "65+"
+          ],
+          "demographic_groups": [
+            "Male",
+            "Female"
+          ],
+          "risk_groups": [
+            "High Risk",
+            "Low Risk"
+          ],
+          "vaccination_groups": [
+            "Vaccinated",
+            "Unvaccinated"
+          ]
+        }
+      }
+    },
+    "validation_rules": {
+      "Inflow": "Use BirthSource elements for population inflows. The inflow to a compartment which doesn't have a source (like recruitment or birth) should use birthSources rather than regular flows",
+      "Outflow": "Use DeathSink elements for population outflows. Natural death and other population losses should use deathSinks rather than flows to non-existent compartments",
+      "compartment_uniqueness": "Each (PrimaryName, SecondaryName) pair must be unique",
+      "index_consistency": "Target indices must reference existing compartments using format '//@compartments.X'",
+      "reference_consistency": "Product references must use format '//@products.X', Group references must use format '//@groups.X', Parameter references must use format '//@parameters.X'",
+      "rate_format_numeric": "For numeric modeling: All rates must be numeric values (avoid symbols). Compute a final float numeric value, not an equation.",
+      "rate_format_parametric": "For parametric modeling: Set numeric rates to 0.0 and use rateParameter/contactRateParameter references instead.",
+      "parameter_uniqueness": "Parameter names must be unique within a model",
+      "parameter_references": "All parameter references must point to existing parameters using 0-based indexing",
+      "flow_type_consistency": "Use xsi:type=\"seir:RateFlow\" for progression flows, xsi:type=\"seir:ContactFlow\" for transmission flows",
+      "stratification_consistency": "Compartments with product attribute should have stratumSpecificRates in their flows where applicable",
+      "terminal_compartments": "Terminal compartments (like Deaths, Recovered) typically have no outgoing flows (exception: loss of immunity)",
+      "contact_flow_validation": "ContactFlow must specify contactCompartment (usually an Infectious compartment) and either contactRate or contactRateParameter",
+      "stratum_validation": "stratumSpecificRates stratum values must match the values defined in the referenced Group",
+      "population_balance": "BirthSources and DeathSinks help maintain population balance in the model",
+      "description": "Even though description is optional, it would be very helpful if each flow has a brief description explaining the purpose of this flow.",
+      "unicode_support": "Parameter names support Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)"
+    },
+    "model_extensions": {
+      "parameter_system": {
+        "description": "NEW in Version 2.0: Comprehensive parameter system for symbolic/parametric modeling",
+        "features": [
+          "Three parameter types: CONSTANT, VARIABLE, EXPRESSION",
+          "Parameter references in RateFlow, ContactFlow, BirthSource, DeathSink, StratumSpecificRate",
+          "Unicode support for Greek symbols and mathematical notation",
+          "Separation of model structure from parameter values",
+          "Automatic equation generation with symbolic output"
+        ],
+        "benefits": [
+          "Reusability: Change parameters without modifying model structure",
+          "Documentation: Parameters carry descriptions and units",
+          "Professional output: Equations match published papers (\u03b2\u2081, \u03bc\u2095 instead of 0.9969, 0.001384)",
+          "Environmental dependencies: Temperature, rainfall, intervention levels",
+          "Backward compatibility: Existing numeric models continue working"
+        ]
+      },
+      "stratification_system": {
+        "description": "Stratification system using Groups and Products",
+        "Groups": "Define demographic or risk categories (e.g., age groups, gender, risk levels)",
+        "Products": "Combine multiple groups for complex stratification",
+        "compartment_stratification": "Compartments can reference a Product to be automatically stratified"
+      },
+      "flow_enhancements": {
+        "abstract_flows": "Flow is now abstract with RateFlow and ContactFlow as concrete implementations",
+        "stratum_specific_rates": "Both RateFlow and ContactFlow support different rates for different strata (numeric or parametric)",
+        "contact_modeling": "ContactFlow enables sophisticated transmission modeling with contact compartments",
+        "parameter_references": "All flows can reference parameters instead of using numeric attributes"
+      },
+      "population_dynamics": {
+        "BirthSource": "Models population inflow (births, immigration, recruitment). Supports numeric rates and parameter references.",
+        "DeathSink": "Models population outflow (deaths, emigration). Supports numeric rates and parameter references.",
+        "global_rates": "SEIRModel can specify totalPopulation, globalBirthRate, globalDeathRate"
+      },
+      "diagram_support": {
+        "description": "Sirius diagrams intelligently display parameter names or numeric values",
+        "implementation": "AQL expressions check for parameter references using ->notEmpty(), displaying parameter names when available or numeric values otherwise",
+        "greek_symbols": "Full Unicode support in diagram labels for professional mathematical notation"
+      },
+      "equation_generation": {
+        "description": "SEIREquationGenerator produces symbolic equations for parametric models",
+        "features": [
+          "Parameter names in equations (\u03b3\u2095, \u03c1\u2095, \u03b2\u2081) instead of numbers (0.120342, 0.001995, 0.9969)",
+          "EXPRESSION parameters expanded in equations",
+          "Backward compatible with numeric models",
+          "Output matches mathematical notation in published papers"
+        ]
+      }
+    },
+    "modeling_approaches": {
+      "numeric_modeling": {
+        "description": "Traditional approach using hardcoded numeric values",
+        "when_to_use": [
+          "Legacy models",
+          "Simple demonstrations",
+          "Quick prototypes",
+          "Models without parameter reuse"
+        ],
+        "example_snippet": "<outgoingFlows xsi:type=\"seir:RateFlow\" rate=\"0.120342\" target=\"//@compartments.3\"/>",
+        "limitations": [
+          "Equations show numbers instead of symbolic names",
+          "Hard to track which number represents which parameter",
+          "Changing a parameter value requires finding all uses",
+          "Doesn't match mathematical notation in papers"
+        ]
+      },
+      "parametric_modeling": {
+        "description": "NEW approach using named parameters with references",
+        "when_to_use": [
+          "Published models needing to match paper equations",
+          "Models with environmental dependencies (temperature, rainfall)",
+          "Models requiring parameter reuse",
+          "Complex models with many parameters",
+          "Models needing professional mathematical notation"
+        ],
+        "example_snippet": "<parameters name=\"\u03b3\u2095\" expression=\"0.120342\" description=\"Recovery rate Ih to Rh\" unit=\"1/time\"/>\n<outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.9\" target=\"//@compartments.3\"/>",
+        "benefits": [
+          "Equations show symbolic names (\u03b3\u2095, \u03bc\u2095, \u03b2\u2081)",
+          "Parameters documented with descriptions and units",
+          "Easy to change parameter values in one place",
+          "Supports Greek symbols and professional notation",
+          "Matches published papers exactly",
+          "Enables sensitivity analysis and parameter sweeps"
+        ]
+      },
+      "mixed_modeling": {
+        "description": "Combination of numeric and parametric approaches in the same model",
+        "when_to_use": "Transitioning from numeric to parametric, or when only some parameters need symbolic representation",
+        "priority": "Parameter references take precedence over numeric attributes when both are present"
+      }
+    },
+    "best_practices": {
+      "parameter_naming": [
+        "Use Greek symbols for standard epidemiological parameters (\u03b2 for transmission, \u03bc for mortality, \u03b3 for recovery, \u03c1 for progression)",
+        "Use subscripts to distinguish between populations (\u03bc\u2095 for human, \u03bc\u1d65 for vector)",
+        "Use function notation for dependencies: a(T) for temperature-dependent, \u03b8\u1d65(T,R) for temperature and rainfall",
+        "Keep names concise but meaningful"
+      ],
+      "parameter_organization": [
+        "Define CONSTANT parameters first",
+        "Then VARIABLE parameters (environmental inputs)",
+        "Then EXPRESSION parameters (computed from others)",
+        "Group related parameters together",
+        "Always provide descriptions and units"
+      ],
+      "model_structure": [
+        "Use BirthSource for all population inflows (not flows from nowhere)",
+        "Use DeathSink for all population outflows (not flows to nowhere)",
+        "Use RateFlow for progression, recovery, immunity loss",
+        "Use ContactFlow for transmission and infection",
+        "Always provide flow descriptions"
+      ],
+      "parametric_vs_numeric": [
+        "For new models: Use parametric approach for better maintainability",
+        "For existing models: Can keep numeric or migrate to parametric",
+        "When using parametric: Set numeric attributes to 0.0",
+        "When unsure: Start parametric, easier to maintain long-term"
+      ]
+    },
+    "unicode_reference": {
+      "greek_letters": {
+        "lowercase": "\u03b1 (alpha), \u03b2 (beta), \u03b3 (gamma), \u03b4 (delta), \u03b5 (epsilon), \u03b8 (theta), \u03bb (lambda), \u03bc (mu), \u03c1 (rho), \u03c3 (sigma), \u03c6 (phi), \u03c9 (omega)",
+        "uppercase": "\u0393 (Gamma), \u0394 (Delta), \u0398 (Theta), \u039b (Lambda), \u03a3 (Sigma), \u03a6 (Phi), \u03a9 (Omega)"
+      },
+      "subscripts": "\u2080 \u2081 \u2082 \u2083 \u2084 \u2085 \u2086 \u2087 \u2088 \u2089 \u2090 \u2091 \u2095 \u1d62 \u2c7c \u2096 \u2097 \u2098 \u2099 \u2092 \u209a \u1d63 \u209b \u209c \u1d64 \u1d65 \u2093",
+      "superscripts": "\u2070 \u00b9 \u00b2 \u00b3 \u2074 \u2075 \u2076 \u2077 \u2078 \u2079 \u207a \u207b \u207c \u207d \u207e",
+      "common_combinations": {
+        "\u03bc\u2095": "mu_h (human mortality)",
+        "\u03bc\u1d65": "mu_v (vector mortality)",
+        "\u03b2\u2081": "beta1 (transmission probability 1)",
+        "\u03b2\u2082": "beta2 (transmission probability 2)",
+        "\u03b3\u2095": "gamma_h (human recovery rate)",
+        "\u03c1\u2095": "rho_h (human progression rate)",
+        "\u03b8\u1d65": "theta_v (vector recruitment)",
+        "\u03b1\u2095": "alpha_h (human recruitment)",
+        "\u039b\u2098": "Lambda_m (mosquito progression)"
+      }
+    }
+  }
+}
+********************************************************************************
+User Input:
+Table of Compartments
+Index, Primary Name, Secondary Name, Description, Stratified By
+0, Susceptible, -, Susceptible individuals, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+1, Infectious, Untreated Infected, Untreated infected individuals, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+2, Treated, with ART, Individuals treated with antiretrovirals, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+3, Infectious, living with AIDS, People living with AIDS, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+4, HIV Deaths, -, Deaths from HIV/AIDS, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+
+Table of Flows with Variables
+From -> To, Description, Rate Expression / Parameter, Stratum-Specific Rates
+S -> I, Transmission from infected homosexual men (ContactFlow), λ_hh * S, Homosexual Men: λ_hh | Women: λ_hw | Heterosexual Men: λ_hm
+S -> I, Transmission from infected women (ContactFlow), λ_w * S, Homosexual Men: 0 | Women: λ_wm | Heterosexual Men: λ_wm
+S -> I, Transmission from infected heterosexual men (ContactFlow), λ_m * S, Homosexual Men: 0 | Women: λ_mw | Heterosexual Men: 0
+I -> T, Initial treatment of infected individuals, α * p * I, All strata: α * p
+I -> A, Progression to AIDS for untreated, α * (1-p) * I, All strata: α * (1-p)
+T -> A, Progression to AIDS for treated (treatment failure), δ * T, All strata: δ
+A -> D, Death from AIDS, d * A, All strata: d
+∅ -> S, Recruitment of susceptible individuals, Ψ * proportion, Homosexual Men: Ψ*θ*(1-γ) | Women: Ψ*(1-θ) | Heterosexual Men: Ψ*θ*γ
+All -> death, Natural mortality, μ * Compartment, All compartments and strata: μ
+
+Table of Parameters & Values
+Parameter, Meaning, Value
+Ψ, Recruitment rate into the susceptible population, 333
+θ, Proportion of men in the population, 0.48
+γ, Proportion of heterosexual men among all men, 0.92
+p, Proportion of infected individuals who receive initial treatment, 0.90
+μ, Natural mortality rate, 0.0129
+d, AIDS-induced mortality rate, 0.3333
+δ, Rate of AIDS development in treated individuals, 0.018
+α, Departure rate from infected compartments, 0.3333
+β_s, Probability of heterosexual transmission per contact, 0.02
+β_h, Probability of homosexual transmission per contact, 0.44
+β_hw, Probability of transmission from homosexual men to women per contact, 0.018
+β_hm, Probability of transmission from homosexual men to heterosexual men per contact, 0.005
+c_h, Contact rate for homosexual men, 7
+c_s, Contact rate for heterosexuals, 4
+c_hw, Contact rate between homosexual men and women, 2
+c_hm, Contact rate between homosexual and heterosexual men, 1
+
+Calculated Force of Infection Parameters (λ)
+These are pre-computed from the transmission probabilities, contact rates, and population sizes.
+Parameter, Formula, Value
+λ_hh, β_h * c_h * I_h / N_h, 0.09636435643564358
+λ_hw, β_hw * c_hw * I_h / N_h, 0.0011263366336633665
+λ_hm, β_hm * c_hm * I_h / N_h, 0.007821782178217822
+λ_wm, β_s * c_s * I_w / N_w, 2.526315789473684E-6
+λ_mw, β_s * c_s * I_m / N_m, 1.355124355907057E-5
+
+Population Sizes (for reference)
+N_h, Total homosexual men, 2525 (S_h + I_h = 2446 + 79)
+N_w, Total women, 190000 (S_w + I_w = 189994 + 6)
+N_m, Total heterosexual men, 171202 (S_m + I_m = 171173 + 29)
+N, Total population, 363727
+
+Initial Populations
+Compartment, Stratum, Initial Value
+S, Homosexual Men, 2446
+S, Women, 189994
+S, Heterosexual Men, 171173
+I, Homosexual Men, 79
+I, Women, 6
+I, Heterosexual Men, 29
+T, Homosexual Men, 36
+T, Women, 48
+T, Heterosexual Men, 23
+A, Homosexual Men, 16
+A, Women, 21
+A, Heterosexual Men, 10
+D, All strata, 0
+
+Stratification Structure
+Group Name, Values
+SexualBehavior, Homosexual Men | Women | Heterosexual Men
+
+Products
+Product Name, Description, Groups Used
+SexualBehaviorProduct, Stratification by sexual behavior, SexualBehavior
+
+IMPORTANT NOTES FOR MODEL GENERATION:
+1. All compartments EXCEPT 'HIV Deaths' should be stratified by SexualBehaviorProduct
+2. Transmission flows (S -> I) are ContactFlows with contactCompartment pointing to the infected compartment
+3. Each transmission route has stratum-specific rates (see Stratum-Specific Rates column)
+4. Non-transmission flows (treatment, progression) use RateFlows with same rate across all strata
+5. Birth sources and death sinks must be stratum-specific
+6. AIDS deaths (A -> D) flow to the HIV Deaths compartment, not to death sinks
+7. The λ values are PRE-CALCULATED - do not attempt to recalculate them from β, c, I, N
+********************************************************************************
+Image is also provided with the above textual input!
+********************************************************************************
+LLM1 RESPONSE:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <groups name="SexualBehavior">
+    <values>Homosexual Men</values>
+    <values>Women</values>
+    <values>Heterosexual Men</values>
+  </groups>
+  <products name="SexualBehaviorProduct">
+    <groups href="//@groups.0"/>
+  </products>
+  <compartments PrimaryName="Susceptible" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected homosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Women" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="[[rate_missing]]"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected women">
+      <stratumSpecificRates stratum="Homosexual Men" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Women" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="[[rate_missing]]"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected heterosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Women" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="[[rate_missing]]"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Infected" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.2" description="Initial treatment of infected individuals"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.3" description="Progression to AIDS for untreated"/>
+  </compartments>
+  <compartments PrimaryName="Treated" SecondaryName="with ART" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.3" description="Progression to AIDS for treated (treatment failure)"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.4" description="Death from AIDS"/>
+  </compartments>
+  <compartments PrimaryName="HIV Deaths"/>
+  <birthSources name="Recruitment_Homosexual_Men" rate="[[rate_missing]]" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+  <birthSources name="Recruitment_Women" rate="[[rate_missing]]" targetCompartment="//@compartments.0" targetStratum="Women"/>
+  <birthSources name="Recruitment_Heterosexual_Men" rate="[[rate_missing]]" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_S_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_S_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_S_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_I_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_I_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_I_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_T_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_T_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_T_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_A_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_A_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_A_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+</seir:SEIRModel>
+```
+********************************************************************************
+
+********************************************************************************
+LLM2 PROMPT:
+You are an expert at interpreting epidemiological equations and inserting computed rates into XML model files, including models with stratification. You are given a partially completed SEIR XML file where all rate fields are marked as [[rate_missing]] and a user_input section that includes all relevant parameter values, formulas, and explicit population data (e.g., S, I, N) if required. YOUR TASK: Identify each [[rate_missing]] in outgoingFlows, stratumSpecificRates, birthSources, and deathSinks. For each one, compute the correct rate using ONLY values explicitly provided in user_input. For ContactFlow elements, use the pre-calculated λ values directly and NEVER attempt to recompute them. For RateFlow, use the per-capita formulas (e.g., α*p, δ, μ). IMPORTANT: If any required value is missing or cannot be computed, DO NOT leave [[rate_missing]] and DO NOT invent a value—simply insert rate=0 (or contactRate=0) so that the XML remains valid, and include the reasoning comment explaining what was missing. Before writing each rate, output a detailed XML comment describing the flow, the compartment(s), the stratum, the formula, the substitutions, and the arithmetic. Then insert the final computed rate. STRATIFICATION: If a flow has stratumSpecificRates, compute each stratum separately; if the flow table indicates a stratum has rate 0, write 0. CONTACTFLOW: Select λ based on description, contactCompartment, and stratum. IMPORTANT RULES: Never round; keep full precision. Do NOT modify any XML tags, attributes, or structure—only fill in rate/contactRate values and add reasoning comments. Replace ALL uncomputable rates with 0. Your job is to produce a fully computed, perfectly valid XML file.
+********************************************************************************
+USER INPUT:
+Table of Compartments
+Index, Primary Name, Secondary Name, Description, Stratified By
+0, Susceptible, -, Susceptible individuals, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+1, Infectious, Untreated Infected, Untreated infected individuals, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+2, Treated, with ART, Individuals treated with antiretrovirals, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+3, Infectious, living with AIDS, People living with AIDS, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+4, HIV Deaths, -, Deaths from HIV/AIDS, Sexual Behavior (Homosexual Men | Women | Heterosexual Men)
+
+Table of Flows with Variables
+From -> To, Description, Rate Expression / Parameter, Stratum-Specific Rates
+S -> I, Transmission from infected homosexual men (ContactFlow), λ_hh * S, Homosexual Men: λ_hh | Women: λ_hw | Heterosexual Men: λ_hm
+S -> I, Transmission from infected women (ContactFlow), λ_w * S, Homosexual Men: 0 | Women: λ_wm | Heterosexual Men: λ_wm
+S -> I, Transmission from infected heterosexual men (ContactFlow), λ_m * S, Homosexual Men: 0 | Women: λ_mw | Heterosexual Men: 0
+I -> T, Initial treatment of infected individuals, α * p * I, All strata: α * p
+I -> A, Progression to AIDS for untreated, α * (1-p) * I, All strata: α * (1-p)
+T -> A, Progression to AIDS for treated (treatment failure), δ * T, All strata: δ
+A -> D, Death from AIDS, d * A, All strata: d
+∅ -> S, Recruitment of susceptible individuals, Ψ * proportion, Homosexual Men: Ψ*θ*(1-γ) | Women: Ψ*(1-θ) | Heterosexual Men: Ψ*θ*γ
+All -> death, Natural mortality, μ * Compartment, All compartments and strata: μ
+
+Table of Parameters & Values
+Parameter, Meaning, Value
+Ψ, Recruitment rate into the susceptible population, 333
+θ, Proportion of men in the population, 0.48
+γ, Proportion of heterosexual men among all men, 0.92
+p, Proportion of infected individuals who receive initial treatment, 0.90
+μ, Natural mortality rate, 0.0129
+d, AIDS-induced mortality rate, 0.3333
+δ, Rate of AIDS development in treated individuals, 0.018
+α, Departure rate from infected compartments, 0.3333
+β_s, Probability of heterosexual transmission per contact, 0.02
+β_h, Probability of homosexual transmission per contact, 0.44
+β_hw, Probability of transmission from homosexual men to women per contact, 0.018
+β_hm, Probability of transmission from homosexual men to heterosexual men per contact, 0.005
+c_h, Contact rate for homosexual men, 7
+c_s, Contact rate for heterosexuals, 4
+c_hw, Contact rate between homosexual men and women, 2
+c_hm, Contact rate between homosexual and heterosexual men, 1
+
+Calculated Force of Infection Parameters (λ)
+These are pre-computed from the transmission probabilities, contact rates, and population sizes.
+Parameter, Formula, Value
+λ_hh, β_h * c_h * I_h / N_h, 0.09636435643564358
+λ_hw, β_hw * c_hw * I_h / N_h, 0.0011263366336633665
+λ_hm, β_hm * c_hm * I_h / N_h, 0.007821782178217822
+λ_wm, β_s * c_s * I_w / N_w, 2.526315789473684E-6
+λ_mw, β_s * c_s * I_m / N_m, 1.355124355907057E-5
+
+Population Sizes (for reference)
+N_h, Total homosexual men, 2525 (S_h + I_h = 2446 + 79)
+N_w, Total women, 190000 (S_w + I_w = 189994 + 6)
+N_m, Total heterosexual men, 171202 (S_m + I_m = 171173 + 29)
+N, Total population, 363727
+
+Initial Populations
+Compartment, Stratum, Initial Value
+S, Homosexual Men, 2446
+S, Women, 189994
+S, Heterosexual Men, 171173
+I, Homosexual Men, 79
+I, Women, 6
+I, Heterosexual Men, 29
+T, Homosexual Men, 36
+T, Women, 48
+T, Heterosexual Men, 23
+A, Homosexual Men, 16
+A, Women, 21
+A, Heterosexual Men, 10
+D, All strata, 0
+
+Stratification Structure
+Group Name, Values
+SexualBehavior, Homosexual Men | Women | Heterosexual Men
+
+Products
+Product Name, Description, Groups Used
+SexualBehaviorProduct, Stratification by sexual behavior, SexualBehavior
+
+IMPORTANT NOTES FOR MODEL GENERATION:
+1. All compartments EXCEPT 'HIV Deaths' should be stratified by SexualBehaviorProduct
+2. Transmission flows (S -> I) are ContactFlows with contactCompartment pointing to the infected compartment
+3. Each transmission route has stratum-specific rates (see Stratum-Specific Rates column)
+4. Non-transmission flows (treatment, progression) use RateFlows with same rate across all strata
+5. Birth sources and death sinks must be stratum-specific
+6. AIDS deaths (A -> D) flow to the HIV Deaths compartment, not to death sinks
+7. The λ values are PRE-CALCULATED - do not attempt to recalculate them from β, c, I, N
+********************************************************************************
+LLM1'S RESPONSE:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <groups name="SexualBehavior">
+    <values>Homosexual Men</values>
+    <values>Women</values>
+    <values>Heterosexual Men</values>
+  </groups>
+  <products name="SexualBehaviorProduct">
+    <groups href="//@groups.0"/>
+  </products>
+  <compartments PrimaryName="Susceptible" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected homosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Women" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="[[rate_missing]]"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected women">
+      <stratumSpecificRates stratum="Homosexual Men" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Women" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="[[rate_missing]]"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="[[rate_missing]]" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected heterosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Women" rate="[[rate_missing]]"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="[[rate_missing]]"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Infected" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.2" description="Initial treatment of infected individuals"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.3" description="Progression to AIDS for untreated"/>
+  </compartments>
+  <compartments PrimaryName="Treated" SecondaryName="with ART" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.3" description="Progression to AIDS for treated (treatment failure)"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rate="[[rate_missing]]" target="//@compartments.4" description="Death from AIDS"/>
+  </compartments>
+  <compartments PrimaryName="HIV Deaths"/>
+  <birthSources name="Recruitment_Homosexual_Men" rate="[[rate_missing]]" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+  <birthSources name="Recruitment_Women" rate="[[rate_missing]]" targetCompartment="//@compartments.0" targetStratum="Women"/>
+  <birthSources name="Recruitment_Heterosexual_Men" rate="[[rate_missing]]" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_S_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_S_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_S_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_I_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_I_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_I_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_T_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_T_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_T_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural_Death_A_Homosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural_Death_A_Women" rate="[[rate_missing]]" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="Natural_Death_A_Heterosexual_Men" rate="[[rate_missing]]" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+</seir:SEIRModel>
+```
+********************************************************************************
+LLM2'S RESPONSE:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <groups name="SexualBehavior">
+    <values>Homosexual Men</values>
+    <values>Women</values>
+    <values>Heterosexual Men</values>
+  </groups>
+  <products name="SexualBehaviorProduct">
+    <groups href="//@groups.0"/>
+  </products>
+  <compartments PrimaryName="Susceptible" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" <!-- Flow: S -> I (Transmission from infected homosexual men). The top-level contactRate is ambiguous as multiple, pre-calculated lambda (λ) values are provided for different susceptible strata. A single value cannot be computed from the input. As per instructions for uncomputable rates, this is set to 0. The actual rates of infection are specified in the stratumSpecificRates elements. -->
+      contactRate="0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected homosexual men">
+      <!-- Flow: S -> I. Stratum: Susceptible Homosexual Men. Description: Transmission from infected homosexual men. Formula: Use pre-calculated λ_hh. Value: λ_hh = 0.09636435643564358. -->
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.09636435643564358"/>
+      <!-- Flow: S -> I. Stratum: Susceptible Women. Description: Transmission from infected homosexual men. Formula: Use pre-calculated λ_hw. Value: λ_hw = 0.0011263366336633665. -->
+      <stratumSpecificRates stratum="Women" rate="0.0011263366336633665"/>
+      <!-- Flow: S -> I. Stratum: Susceptible Heterosexual Men. Description: Transmission from infected homosexual men. Formula: Use pre-calculated λ_hm. Value: λ_hm = 0.007821782178217822. -->
+      <stratumSpecificRates stratum="Heterosexual Men" rate="0.007821782178217822"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" <!-- Flow: S -> I (Transmission from infected women). The top-level contactRate is ambiguous as multiple, pre-calculated lambda (λ) values are provided for different susceptible strata. A single value cannot be computed from the input. As per instructions for uncomputable rates, this is set to 0. The actual rates of infection are specified in the stratumSpecificRates elements. -->
+      contactRate="0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected women">
+      <!-- Flow: S -> I. Stratum: Susceptible Homosexual Men. Description: Transmission from infected women. Formula: Rate is explicitly 0 in the flow table. -->
+      <stratumSpecificRates stratum="Homosexual Men" rate="0"/>
+      <!-- Flow: S -> I. Stratum: Susceptible Women. Description: Transmission from infected women. Formula: Use pre-calculated λ_wm. Value: λ_wm = 2.526315789473684E-6. -->
+      <stratumSpecificRates stratum="Women" rate="2.526315789473684E-6"/>
+      <!-- Flow: S -> I. Stratum: Susceptible Heterosexual Men. Description: Transmission from infected women. Formula: Use pre-calculated λ_wm. Value: λ_wm = 2.526315789473684E-6. -->
+      <stratumSpecificRates stratum="Heterosexual Men" rate="2.526315789473684E-6"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" <!-- Flow: S -> I (Transmission from infected heterosexual men). The top-level contactRate is ambiguous as multiple, pre-calculated lambda (λ) values are provided for different susceptible strata. A single value cannot be computed from the input. As per instructions for uncomputable rates, this is set to 0. The actual rates of infection are specified in the stratumSpecificRates elements. -->
+      contactRate="0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Transmission from infected heterosexual men">
+      <!-- Flow: S -> I. Stratum: Susceptible Homosexual Men. Description: Transmission from infected heterosexual men. Formula: Rate is explicitly 0 in the flow table. -->
+      <stratumSpecificRates stratum="Homosexual Men" rate="0"/>
+      <!-- Flow: S -> I. Stratum: Susceptible Women. Description: Transmission from infected heterosexual men. Formula: Use pre-calculated λ_mw. Value: λ_mw = 1.355124355907057E-5. -->
+      <stratumSpecificRates stratum="Women" rate="1.355124355907057E-5"/>
+      <!-- Flow: S -> I. Stratum: Susceptible Heterosexual Men. Description: Transmission from infected heterosexual men. Formula: Rate is explicitly 0 in the flow table. -->
+      <stratumSpecificRates stratum="Heterosexual Men" rate="0"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated Infected" product="//@products.0">
+    <!-- Flow: I -> T. Description: Initial treatment of infected individuals. This is a per-capita rate, same for all strata. Formula: α * p. Substitution: 0.3333 * 0.90. Arithmetic: 0.29997. -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.29997" target="//@compartments.2" description="Initial treatment of infected individuals"/>
+    <!-- Flow: I -> A. Description: Progression to AIDS for untreated individuals. This is a per-capita rate, same for all strata. Formula: α * (1 - p). Substitution: 0.3333 * (1 - 0.90). Arithmetic: 0.3333 * 0.10 = 0.03333. -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.03333" target="//@compartments.3" description="Progression to AIDS for untreated"/>
+  </compartments>
+  <compartments PrimaryName="Treated" SecondaryName="with ART" product="//@products.0">
+    <!-- Flow: T -> A. Description: Progression to AIDS for treated individuals (treatment failure). This is a per-capita rate, same for all strata. Formula: δ. Substitution: 0.018. -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.018" target="//@compartments.3" description="Progression to AIDS for treated (treatment failure)"/>
+  </compartments>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" product="//@products.0">
+    <!-- Flow: A -> D. Description: Death from AIDS. This is a per-capita rate, same for all strata. Formula: d. Substitution: 0.3333. -->
+    <outgoingFlows xsi:type="seir:RateFlow" rate="0.3333" target="//@compartments.4" description="Death from AIDS"/>
+  </compartments>
+  <compartments PrimaryName="HIV Deaths"/>
+  <!-- Flow: Birth -> S. Description: Recruitment of susceptible individuals. Stratum: Homosexual Men. Formula: Ψ * θ * (1 - γ). Substitution: 333 * 0.48 * (1 - 0.92). Arithmetic: 333 * 0.48 * 0.08 = 12.7872. -->
+  <birthSources name="Recruitment_Homosexual_Men" rate="12.7872" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+  <!-- Flow: Birth -> S. Description: Recruitment of susceptible individuals. Stratum: Women. Formula: Ψ * (1 - θ). Substitution: 333 * (1 - 0.48). Arithmetic: 333 * 0.52 = 173.16. -->
+  <birthSources name="Recruitment_Women" rate="173.16" targetCompartment="//@compartments.0" targetStratum="Women"/>
+  <!-- Flow: Birth -> S. Description: Recruitment of susceptible individuals. Stratum: Heterosexual Men. Formula: Ψ * θ * γ. Substitution: 333 * 0.48 * 0.92. Arithmetic: 147.0528. -->
+  <birthSources name="Recruitment_Heterosexual_Men" rate="147.0528" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  <!-- Flow: S -> Death. Description: Natural mortality from Susceptible compartment. Stratum: Homosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_S_Homosexual_Men" rate="0.0129" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+  <!-- Flow: S -> Death. Description: Natural mortality from Susceptible compartment. Stratum: Women. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_S_Women" rate="0.0129" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+  <!-- Flow: S -> Death. Description: Natural mortality from Susceptible compartment. Stratum: Heterosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_S_Heterosexual_Men" rate="0.0129" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+  <!-- Flow: I -> Death. Description: Natural mortality from Infectious compartment. Stratum: Homosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_I_Homosexual_Men" rate="0.0129" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+  <!-- Flow: I -> Death. Description: Natural mortality from Infectious compartment. Stratum: Women. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_I_Women" rate="0.0129" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+  <!-- Flow: I -> Death. Description: Natural mortality from Infectious compartment. Stratum: Heterosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_I_Heterosexual_Men" rate="0.0129" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+  <!-- Flow: T -> Death. Description: Natural mortality from Treated compartment. Stratum: Homosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_T_Homosexual_Men" rate="0.0129" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+  <!-- Flow: T -> Death. Description: Natural mortality from Treated compartment. Stratum: Women. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_T_Women" rate="0.0129" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+  <!-- Flow: T -> Death. Description: Natural mortality from Treated compartment. Stratum: Heterosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_T_Heterosexual_Men" rate="0.0129" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+  <!-- Flow: A -> Death. Description: Natural mortality from AIDS compartment. Stratum: Homosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_A_Homosexual_Men" rate="0.0129" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <!-- Flow: A -> Death. Description: Natural mortality from AIDS compartment. Stratum: Women. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_A_Women" rate="0.0129" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <!-- Flow: A -> Death. Description: Natural mortality from AIDS compartment. Stratum: Heterosexual Men. Formula: μ. Substitution: 0.0129. -->
+  <deathSinks name="Natural_Death_A_Heterosexual_Men" rate="0.0129" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+</seir:SEIRModel>
+```
