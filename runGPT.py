@@ -43,6 +43,7 @@ LLM3B_PROMPT = prompts["smart_LLM3B_PROMPT"]
 
 
 METAMODEL_FILENAME = "metamodel.json"
+# METAMODEL_FILENAME = "compartmental_metamodel.json" 
 SIMULATION_SKELETON_FILE = "simulation_skeleton.txt"
 
 models = load_json_file("models.json")
