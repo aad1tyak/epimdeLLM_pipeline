@@ -257,7 +257,7 @@ def main():
     print("\n" + "="*80)
     print("Generating Malaria Model...")
     print("="*80)
-    generate_seirmodel_from_image("malariaModel(paper).png", malariaModel, "finalSimpleModel.txt")
+    generate_seirmodel_from_image("malariaModel(paper).png", malariaModel, "finalMalariaModel.txt")
     
     # Uncomment to run simulations
     # time.sleep(10)

@@ -1,0 +1,129 @@
+"""
+SEIR Model Simulation Skeleton
+This template provides the fixed structure for epidemiological simulations.
+LLM will fill in model-specific sections marked with ### SECTION X ###
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ============================================================================
+# SIMULATION CONFIGURATION (Pre-written - Universal)
+# ============================================================================
+max_time = float(input("Enter simulation time (e.g., 10 for 10 years): "))
+dt = 0.1
+time_steps = int(max_time / dt)
+time = np.arange(0, max_time, dt)
+
+# ============================================================================
+# ### SECTION 1: MODEL NAME ###
+# LLM fills this with a descriptive model name for the output file
+# Example: model_name = "HIV_Sexual_Behavior_Stratification"
+# ============================================================================
+model_name = "REPLACE_WITH_MODEL_NAME"
+
+# ============================================================================
+# ### SECTION 2: INITIAL CONDITIONS ###
+# LLM fills this section with initial population values
+# Parse compartment names from ODE equations and assign initial values
+# Use valid Python variable names (replace spaces/special chars with underscores)
+# Example:
+#   Susceptible_Homosexual_Men = 2446
+#   Infectious_Untreated_Homosexual_Men = 79
+#   Susceptible_Women = 189994
+# ============================================================================
+
+# REPLACE_INITIAL_CONDITIONS
+
+# ============================================================================
+# ### SECTION 3: HISTORY ARRAYS ###
+# LLM fills this section with history tracking lists
+# Create one history list per compartment initialized with initial value
+# Must match variable names from SECTION 2 exactly
+# Example:
+#   Susceptible_Homosexual_Men_history = [Susceptible_Homosexual_Men]
+#   Infectious_Untreated_Homosexual_Men_history = [Infectious_Untreated_Homosexual_Men]
+# ============================================================================
+
+# REPLACE_HISTORY_ARRAYS
+
+# ============================================================================
+# SIMULATION LOOP (Pre-written - Universal)
+# ============================================================================
+for step in range(time_steps):
+    
+    # ========================================================================
+    # ### SECTION 4: ODE EQUATIONS ###
+    # LLM fills this section with differential equations
+    # Convert each ODE equation to valid Python syntax
+    # Each equation computes dVariableName_dt
+    # Preserve exact mathematical expressions from input
+    # Example:
+    #   dSusceptible_Homosexual_Men_dt = (
+    #       12.7872 * 362796 
+    #       - (0.09636435643564358 * Susceptible_Homosexual_Men * Infectious_Untreated_Homosexual_Men / 362796)
+    #       - 0.0129 * Susceptible_Homosexual_Men
+    #   )
+    # ========================================================================
+    
+    # REPLACE_ODE_EQUATIONS
+    
+    # ========================================================================
+    # ### SECTION 5: STATE UPDATES ###
+    # LLM fills this section with state variable updates
+    # For each compartment: update using Euler method and enforce non-negativity
+    # Must match variable names from SECTION 2 exactly
+    # Format:
+    #   VariableName += dVariableName_dt * dt
+    #   VariableName = max(VariableName, 0)
+    # Example:
+    #   Susceptible_Homosexual_Men += dSusceptible_Homosexual_Men_dt * dt
+    #   Susceptible_Homosexual_Men = max(Susceptible_Homosexual_Men, 0)
+    # ========================================================================
+    
+    # REPLACE_STATE_UPDATES
+    
+    # ========================================================================
+    # ### SECTION 6: RECORD HISTORY ###
+    # LLM fills this section with history recording
+    # Append current value to corresponding history list
+    # Must match variable and history names from SECTIONS 2 and 3 exactly
+    # Example:
+    #   Susceptible_Homosexual_Men_history.append(Susceptible_Homosexual_Men)
+    #   Infectious_Untreated_Homosexual_Men_history.append(Infectious_Untreated_Homosexual_Men)
+    # ========================================================================
+    
+    # REPLACE_HISTORY_RECORDING
+
+# ============================================================================
+# PLOTTING SETUP (Pre-written - Universal)
+# ============================================================================
+plt.figure(figsize=(12, 8))
+
+# ============================================================================
+# ### SECTION 7: PLOT LINES ###
+# LLM fills this section with plot commands
+# Create one plt.plot() line per compartment with readable label
+# Use history arrays from SECTION 3
+# Format: plt.plot(time, VariableName_history, label='Readable Label')
+# Example:
+#   plt.plot(time, Susceptible_Homosexual_Men_history, label='Susceptible (Homosexual Men)')
+#   plt.plot(time, Infectious_Untreated_Homosexual_Men_history, label='Infectious Untreated (Homosexual Men)')
+# ============================================================================
+
+# REPLACE_PLOT_LINES
+
+# ============================================================================
+# PLOT FINALIZATION (Pre-written - Universal)
+# ============================================================================
+plt.xlabel('Time')
+plt.ylabel('Population')
+plt.title(f'{model_name} - SEIR Model Simulation')
+plt.legend(loc='best', fontsize=8, ncol=2)
+plt.grid(True, alpha=0.3)
+
+# Generate unique output filename using model name
+output_filename = f'simulation_{model_name}.png'
+plt.savefig(output_filename, dpi=300, bbox_inches='tight')
+print(f"Simulation complete! Graph saved as '{output_filename}'")
+plt.close()
