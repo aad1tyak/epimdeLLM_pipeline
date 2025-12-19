@@ -319,12 +319,11 @@ def main():
     
     time.sleep(BREAK_TIME)  # Brief pause between generations
 
-    # print("\n" + "="*80)
-    # print("Generating COVID Model...")
-    # print("="*80)
-    # generate_seirmodel(covidModel, "finalCovidModel.txt")
-
-    # time.sleep(BREAK_TIME)
+    print("\n" + "="*80)
+    print("Generating COVID Model...")
+    print("="*80)
+    generate_seirmodel(covidModel, "finalCovidModel.txt"
+    time.sleep(BREAK_TIME)
 
     # print("\n" + "="*80)
     # print("Generating Simple SIR Model...")
@@ -344,8 +343,11 @@ def main():
     print("Generating HIV Simulation...")
     print("="*80)
     simulate(hiv_ode, "hiv_simulation.py")
-    # time.sleep(BREAK_TIME)
-    # simulate(covid_ode, "covid_simulation.py")
+    time.sleep(BREAK_TIME)
+    print("\n" + "="*80)
+    print("Generating HIV Simulation...")
+    print("="*80)
+    simulate(covid_ode, "covid_simulation.py")
     # time.sleep(BREAK_TIME)
     # simulate(simple_ode, "simple_simulation.py")
     # time.sleep(BREAK_TIME)
