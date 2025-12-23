@@ -1,0 +1,1845 @@
+LLM1 PROMPT:
+You are an expert in XML structure generation for compartmental epidemiological models with stratification support.
+
+Your task is to generate a structurally correct compartmental model in XML format based on the provided user input and the v3 metamodel specification.
+
+**XML Formatting Rules - CRITICAL**
+- Output ONLY valid, well-formed XML with no markdown code blocks, no ```xml tags, no explanations before or after.
+- Every opening tag must have a corresponding closing tag.
+- Self-closing tags MUST end with `/>`.
+- Ensure there are no stray characters or missing `>` or `/>`.
+- Do not break tags across multiple lines.
+- Use proper indentation (2 spaces per level).
+- Validate the entire structure before output: check matching tag pairs, correct attribute quotes, no illegal characters.
+
+**Modeling Rules**
+- Generate compartments, flows, parameters, groups, products, birth sources, and death sinks exactly as specified in user input.
+- Do NOT assume a fixed model structure (e.g., SEIR) unless explicitly specified by the user.
+- For PARAMETRIC models: Use parameter references as defined in the metamodel. Set numeric attributes to 0.0 as placeholders where required.
+- For NUMERIC models: Use numeric attributes with [[rate_missing]] as placeholder values.
+- Use 0-based indexing for all references (parameters, compartments, groups, products).
+- Follow the v3 metamodel strictly for element names, attributes, and nesting structure.
+- If user input specifies stratification (Groups/Products), apply product references to compartments and create stratum-specific rates as instructed.
+- For ContactFlow elements, include contactCompartment only if required by the metamodel and user input.
+- Generate all flows, birth sources, and death sinks as listed in user input. Do not omit any.
+
+**Reference Format**
+- Parameter references: parameter="//@parameters.X" where X is the 0-based parameter index
+- Compartment references: target="//@compartments.X" or sourceCompartment="//@compartments.X"
+- Product references: product="//@products.X"
+- Group references: groups="//@groups.X"
+
+**Reasoning**
+- Before generating XML, output your reasoning as XML comments at the top explaining:
+  * How many compartments, parameters, groups, products you will create
+  * Which compartments are stratified and by which product
+  * How you mapped flows from user input to XML structure
+  * Any assumptions or interpretations made
+
+**Output Format**
+- First: XML comments with reasoning
+- Then: Complete XML structure starting with <?xml version="1.0" encoding="UTF-8"?>
+- No markdown formatting, no code fences, no explanatory text outside XML comments
+- The output must be directly parseable as XML
+********************************************************************************
+METAMODEL:
+{
+  "compartmental_metamodel": {
+    "version": "3.1",
+    "description": "EpiMDE Compartmental Metamodel - Unified framework for epidemiological models, classical traffic networks, and Traffic Reaction Model (TRM) with parametric (symbolic) modeling support",
+    "changelog": {
+      "3.1": "Added Traffic Reaction Model (TRM) support with flux decomposition, dual variable tracking, and kinetic interpretation. New decomposition types: TRM_MAK, TRM_GODUNOV, TRM_CAPACITATED. Extended TRM with capacity drop factors. Fully backward compatible.",
+      "3.0": "Added traffic network modeling with supply-demand dynamics, PP/FIFO junction rules, and triangular fundamental diagram support. Fully backward compatible with disease models.",
+      "2.0": "Added comprehensive parameter system for symbolic/parametric modeling with Unicode support",
+      "1.0": "Initial SEIR/epidemiological metamodel"
+    },
+    "structure": {
+      "xml_declaration": {
+        "version": "1.0",
+        "encoding": "UTF-8"
+      },
+      "root_element": {
+        "tag": "seir:SEIRModel",
+        "attributes": {
+          "xmi:version": "2.0",
+          "xmlns:xmi": "http://www.omg.org/XMI",
+          "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+          "xmlns:seir": "http://example.com/seirmodel"
+        },
+        "optional_attributes": [
+          "totalPopulation",
+          "globalBirthRate",
+          "globalDeathRate"
+        ]
+      },
+      "parameters": {
+        "element": "parameters",
+        "required_attributes": [
+          "name"
+        ],
+        "optional_attributes": [
+          "type",
+          "expression",
+          "description",
+          "unit"
+        ],
+        "description": "Named parameters for symbolic/parametric modeling. Enables separation of model structure from parameter values.",
+        "attributes": {
+          "name": {
+            "description": "Parameter identifier. Supports Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)",
+            "examples": [
+              "\u03b2\u2081",
+              "\u03bc\u2095",
+              "a(T)",
+              "\u03b2\u2082a(T)",
+              "\u03b8\u1d65(T,R)",
+              "\u03b3\u2095"
+            ]
+          },
+          "type": {
+            "description": "Parameter type: CONSTANT (default), VARIABLE, or EXPRESSION",
+            "values": [
+              "CONSTANT",
+              "VARIABLE",
+              "EXPRESSION"
+            ],
+            "default": "CONSTANT"
+          },
+          "expression": {
+            "description": "For CONSTANT/VARIABLE: numeric value. For EXPRESSION: mathematical formula referencing other parameters/compartments",
+            "examples": [
+              "0.001384",
+              "0.000203 * T * (T - 11.7) * sqrt(42.3 - T)",
+              "\u03b2\u2082 * a(T)",
+              "\u03bc\u2095 + 0.017325"
+            ]
+          },
+          "description": {
+            "description": "Human-readable explanation of the parameter",
+            "examples": [
+              "Natural mortality rate of human population",
+              "Mosquito biting rate",
+              "Recovery rate Ih to Rh"
+            ]
+          },
+          "unit": {
+            "description": "Physical unit of measurement. Supports Unicode symbols.",
+            "examples": [
+              "per day",
+              "1/time",
+              "dimensionless",
+              "\u00b0C",
+              "bites/person/time"
+            ]
+          }
+        },
+        "parameter_types": {
+          "CONSTANT": {
+            "description": "Fixed value with a name, used for model parameters that don't change during simulation",
+            "use_cases": [
+              "Natural death rates",
+              "Recovery rates",
+              "Transmission probabilities"
+            ],
+            "example": "<parameters name=\"\u03bc\u2095\" expression=\"0.001384\" description=\"Natural mortality rate\" unit=\"1/time\"/>"
+          },
+          "VARIABLE": {
+            "description": "Placeholder for values provided at simulation time, such as environmental conditions or intervention levels",
+            "use_cases": [
+              "Temperature",
+              "Rainfall",
+              "Intervention effectiveness"
+            ],
+            "example": "<parameters name=\"T\" type=\"VARIABLE\" description=\"Temperature\" unit=\"\u00b0C\"/>"
+          },
+          "EXPRESSION": {
+            "description": "Computed value defined as a mathematical expression referencing other parameters and/or compartments",
+            "use_cases": [
+              "Combined rates",
+              "Temperature-dependent rates",
+              "Death rates with disease mortality"
+            ],
+            "example": "<parameters name=\"\u03b2\u2082a(T)\" type=\"EXPRESSION\" expression=\"\u03b2\u2082 * a(T)\" description=\"Combined contact rate\" unit=\"1/time\"/>"
+          }
+        }
+      },
+      "compartments": {
+        "element": "compartments",
+        "required_attributes": [
+          "PrimaryName"
+        ],
+        "optional_attributes": [
+          "SecondaryName",
+          "population",
+          "product",
+          "junctionRule"
+        ],
+        "child_elements": [
+          "outgoingFlows",
+          "supplyFunction"
+        ],
+        "constraints": {
+          "product": "Reference to product using format '//@products.X'",
+          "junctionRule": "Optional. For traffic models use PPFIFO. For disease models use NONE (default)."
+        },
+        "attributes": {
+          "PrimaryName": {
+            "description": "Main identifier for the compartment",
+            "examples": [
+              "Susceptible",
+              "Exposed",
+              "Infectious",
+              "Onramp1",
+              "Link2"
+            ]
+          },
+          "SecondaryName": {
+            "description": "Additional descriptor for stratification or link type",
+            "examples": [
+              "Adults",
+              "Children",
+              "Ordinary",
+              "Onramp"
+            ]
+          },
+          "population": {
+            "description": "Initial population count (disease models) or initial density (traffic models)",
+            "constraint": "Must be float/decimal value"
+          },
+          "junctionRule": {
+            "description": "Junction rule type for traffic models. NONE for disease models (default), PPFIFO for traffic networks.",
+            "values": [
+              "NONE",
+              "PPFIFO",
+              "CUSTOM"
+            ],
+            "default": "NONE"
+          }
+        }
+      },
+      "supplyFunction": {
+        "element": "supplyFunction",
+        "required_attributes": [
+          "type"
+        ],
+        "optional_attributes": [
+          "isSourceNode",
+          "maxDensity",
+          "criticalDensity",
+          "maxThroughput",
+          "maxDemand",
+          "omega",
+          "capacityDropFactor",
+          "enableDualVariable"
+        ],
+        "description": "Flow network supply and demand functions based on capacity constraints. Supports classical traffic models (Coogan & Arcak 2015) and Traffic Reaction Model (TRM) with kinetic decompositions (Pereira et al. 2024). Generalizable to traffic networks, queue systems, pipeline networks, etc. Only present for flow-constrained models. Disease models do not have this element.",
+        "attributes": {
+          "type": {
+            "description": "Type of supply/demand function",
+            "values": [
+              "NONE",
+              "TRIANGULAR",
+              "LINEAR",
+              "CUSTOM",
+              "TRM_MAK",
+              "TRM_GODUNOV",
+              "TRM_CAPACITATED"
+            ],
+            "default": "NONE"
+          },
+          "isSourceNode": {
+            "description": "Boolean indicating if this is a source/entry node with external input (true) or constrained internal node (false)",
+            "values": [
+              "true",
+              "false"
+            ],
+            "default": "false",
+            "examples": [
+              "Onramps in traffic, generators in systems, entry queues in networks"
+            ]
+          },
+          "maxDensity": {
+            "description": "Maximum density/capacity - saturation point (constrained nodes only)",
+            "unit": "entities/space",
+            "traffic_example": "\u03c1^jam - vehicles per length when stopped"
+          },
+          "criticalDensity": {
+            "description": "Critical density/threshold - point of maximum throughput (constrained nodes only)",
+            "unit": "entities/space",
+            "traffic_example": "\u03c1^crit - density at maximum flow"
+          },
+          "maxThroughput": {
+            "description": "Maximum throughput/capacity - max flow rate (constrained nodes only)",
+            "unit": "entities/time",
+            "traffic_example": "\u03a6^crit - vehicles per hour"
+          },
+          "maxDemand": {
+            "description": "Maximum demand/output rate - upper bound on outflow (source nodes only)",
+            "unit": "entities/time",
+            "traffic_example": "\u03a6^max - max vehicles per hour from onramp"
+          },
+          "omega": {
+            "description": "Reaction rate constant \u03c9 for TRM_MAK (Mass Action Kinetic) decomposition. Used in flux g(\u03c1,\u03bd) = \u03c9\u03c1\u03bd where \u03bd = \u03c1_max - \u03c1 (TRM models only)",
+            "unit": "1/(entities\u00b7time)",
+            "trm_example": "\u03c9 = 0.001 for MAK decomposition",
+            "default": "0.0"
+          },
+          "capacityDropFactor": {
+            "description": "Time-varying capacity drop factor C_i(t) for Extended TRM models. Enables modeling of changing traffic conditions (incidents, construction, weather). Value in range (0, 1] where 1 = normal capacity (TRM models only)",
+            "unit": "dimensionless",
+            "trm_example": "0.75 represents 25% capacity reduction",
+            "default": "1.0"
+          },
+          "enableDualVariable": {
+            "description": "Boolean flag to enable dual variable tracking: \u03c1 (vehicle density) and \u03bd (free space density) where \u03bd = \u03c1_max - \u03c1. Enables kinetic/compartmental interpretation of TRM (TRM models only)",
+            "values": [
+              "true",
+              "false"
+            ],
+            "default": "false",
+            "note": "When true, simulation tracks both occupied space N_i and free space S_i"
+          }
+        },
+        "examples": {
+          "source_node": "<supplyFunction type=\"TRIANGULAR\" isSourceNode=\"true\" maxDemand=\"3000\"/>",
+          "constrained_node": "<supplyFunction type=\"TRIANGULAR\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\"/>",
+          "trm_mak_node": "<supplyFunction type=\"TRM_MAK\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" omega=\"0.001\" enableDualVariable=\"true\"/>",
+          "trm_godunov_node": "<supplyFunction type=\"TRM_GODUNOV\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" enableDualVariable=\"true\"/>",
+          "extended_trm_node": "<supplyFunction type=\"TRM_CAPACITATED\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" capacityDropFactor=\"0.8\" enableDualVariable=\"true\"/>"
+        }
+      },
+      "outgoingFlows": {
+        "abstract_element": "outgoingFlows",
+        "concrete_types": [
+          "RateFlow",
+          "ContactFlow"
+        ],
+        "common_required_attributes": [
+          "target"
+        ],
+        "common_optional_attributes": [
+          "description"
+        ],
+        "constraints": {
+          "target": "Must be 0-based index in format '//@compartments.X'"
+        }
+      },
+      "RateFlow": {
+        "element": "outgoingFlows",
+        "xsi_type": "seir:RateFlow",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "rate",
+              "target"
+            ],
+            "description": "Use numeric rate attribute directly"
+          },
+          "parametric": {
+            "required_attributes": [
+              "rateParameter",
+              "target"
+            ],
+            "description": "Reference a Parameter by index. Parameter takes precedence over numeric rate."
+          }
+        },
+        "optional_attributes": [
+          "description"
+        ],
+        "child_elements": [
+          "stratumSpecificRates"
+        ],
+        "attributes": {
+          "rate": {
+            "description": "Numeric rate value. For parametric models, set to 0.0 and use rateParameter instead.",
+            "constraint": "Must be float/decimal value"
+          },
+          "rateParameter": {
+            "description": "Reference to a Parameter defining this flow's rate. Format: '//@parameters.X' where X is 0-based index.",
+            "constraint": "Must reference existing parameter"
+          }
+        },
+        "examples": {
+          "numeric": "<outgoingFlows xsi:type=\"seir:RateFlow\" rate=\"0.120342\" target=\"//@compartments.3\"/>",
+          "parametric": "<outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.9\" target=\"//@compartments.3\"/>"
+        }
+      },
+      "ContactFlow": {
+        "element": "outgoingFlows",
+        "xsi_type": "seir:ContactFlow",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "contactRate",
+              "contactCompartment",
+              "target"
+            ],
+            "description": "Use numeric contactRate attribute directly"
+          },
+          "parametric": {
+            "required_attributes": [
+              "contactRateParameter",
+              "contactCompartment",
+              "target"
+            ],
+            "description": "Reference a Parameter by index. Parameter takes precedence over numeric contactRate."
+          }
+        },
+        "optional_attributes": [
+          "description",
+          "contactParameters"
+        ],
+        "child_elements": [
+          "stratumSpecificRates"
+        ],
+        "attributes": {
+          "contactRate": {
+            "description": "Numeric contact/transmission rate. For parametric models, set to 0.0 and use contactRateParameter instead.",
+            "constraint": "Must be float/decimal value"
+          },
+          "contactRateParameter": {
+            "description": "Reference to a Parameter defining this flow's contact rate. Format: '//@parameters.X' where X is 0-based index.",
+            "constraint": "Must reference existing parameter"
+          },
+          "contactCompartment": {
+            "description": "Reference to compartment influencing transmission (usually Infectious or Infected Mosquitoes)",
+            "constraint": "Must reference existing compartment using format '//@compartments.X'"
+          }
+        },
+        "examples": {
+          "numeric": "<outgoingFlows xsi:type=\"seir:ContactFlow\" contactRate=\"0.09636\" contactCompartment=\"//@compartments.1\" target=\"//@compartments.1\"/>",
+          "parametric": "<outgoingFlows xsi:type=\"seir:ContactFlow\" contactRateParameter=\"//@parameters.2\" contactCompartment=\"//@compartments.6\" target=\"//@compartments.1\"/>"
+        }
+      },
+      "stratumSpecificRates": {
+        "element": "stratumSpecificRates",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "stratum",
+              "rate"
+            ],
+            "optional_attributes": [
+              "multiplier"
+            ]
+          },
+          "parametric": {
+            "required_attributes": [
+              "stratum"
+            ],
+            "optional_attributes": [
+              "rateParameter",
+              "multiplierParameter"
+            ]
+          }
+        },
+        "attributes": {
+          "rate": "Numeric rate value for this stratum",
+          "rateParameter": "Reference to Parameter for this stratum's rate",
+          "multiplier": "Numeric multiplier applied to base rate (defaults to 1.0)",
+          "multiplierParameter": "Reference to Parameter for multiplier"
+        },
+        "constraints": {
+          "rate": "Must be float/decimal value",
+          "multiplier": "Must be float/decimal value, defaults to 1.0",
+          "rateParameter": "Format: '//@parameters.X'",
+          "multiplierParameter": "Format: '//@parameters.X'"
+        }
+      },
+      "birthSources": {
+        "element": "birthSources",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "name",
+              "rate",
+              "targetCompartment"
+            ]
+          },
+          "parametric": {
+            "required_attributes": [
+              "name",
+              "rateParameter",
+              "targetCompartment"
+            ]
+          }
+        },
+        "optional_attributes": [
+          "targetStratum",
+          "fixedRate"
+        ],
+        "attributes": {
+          "rate": "Numeric birth rate",
+          "rateParameter": "Reference to Parameter for birth rate. Format: '//@parameters.X'"
+        },
+        "constraints": {
+          "rate": "Must be float/decimal value",
+          "rateParameter": "Must reference existing parameter",
+          "targetCompartment": "Reference to compartment using format '//@compartments.X'",
+          "fixedRate": "Boolean value, defaults to false"
+        },
+        "examples": {
+          "numeric": "<birthSources name=\"Humans\" rate=\"15129\" targetCompartment=\"//@compartments.0\"/>",
+          "parametric": "<birthSources name=\"Humans\" rateParameter=\"//@parameters.0\" targetCompartment=\"//@compartments.0\"/>"
+        }
+      },
+      "deathSinks": {
+        "element": "deathSinks",
+        "modeling_modes": {
+          "numeric": {
+            "required_attributes": [
+              "name",
+              "rate",
+              "sourceCompartment"
+            ]
+          },
+          "parametric": {
+            "required_attributes": [
+              "name",
+              "rateParameter",
+              "sourceCompartment"
+            ]
+          }
+        },
+        "optional_attributes": [
+          "sourceStratum"
+        ],
+        "attributes": {
+          "rate": "Numeric death rate",
+          "rateParameter": "Reference to Parameter for death rate. Format: '//@parameters.X'"
+        },
+        "constraints": {
+          "rate": "Must be float/decimal value",
+          "rateParameter": "Must reference existing parameter",
+          "sourceCompartment": "Reference to compartment using format '//@compartments.X'"
+        },
+        "examples": {
+          "numeric": "<deathSinks name=\"Natural_Death_SH\" rate=\"0.001384\" sourceCompartment=\"//@compartments.0\"/>",
+          "parametric": "<deathSinks name=\"Natural_Death_SH\" rateParameter=\"//@parameters.5\" sourceCompartment=\"//@compartments.0\"/>"
+        }
+      },
+      "groups": {
+        "element": "groups",
+        "required_attributes": [
+          "name"
+        ],
+        "optional_attributes": [
+          "description"
+        ],
+        "child_elements": [
+          "values"
+        ],
+        "constraints": {
+          "values": "Array of string values representing the group stratification levels"
+        }
+      },
+      "products": {
+        "element": "products",
+        "required_attributes": [
+          "name"
+        ],
+        "optional_attributes": [
+          "description"
+        ],
+        "child_elements": [
+          "groups"
+        ],
+        "constraints": {
+          "groups": "Reference to groups using format '//@groups.X'"
+        }
+      }
+    },
+    "compartment_types": {
+      "traffic_components": [
+        "Onramp",
+        "Link",
+        "Ordinary Link",
+        "Highway Link",
+        "Road Segment",
+        "Junction",
+        "Merge Point"
+      ],
+      "epidemiological_states": [
+        "Susceptible",
+        "Exposed",
+        "Infectious",
+        "Recovered",
+        "Deceased",
+        "Dead",
+        "Removed"
+      ],
+      "treatment_states": [
+        "Vaccinated",
+        "Treated",
+        "Hospitalized",
+        "Quarantined",
+        "Isolated"
+      ],
+      "vector_states": [
+        "Susceptible Mosquitoes",
+        "Exposed Mosquitoes",
+        "Infectious Mosquitoes"
+      ],
+      "demographic_states": [
+        "Recruitment",
+        "Birth",
+        "Immigration"
+      ],
+      "terminal_states": [
+        "Death",
+        "Natural Death",
+        "Death due to AIDS",
+        "Dead"
+      ],
+      "severity_modifiers": [
+        "Asymptomatic",
+        "Symptomatic",
+        "Mild",
+        "Moderate",
+        "Severe",
+        "Critical"
+      ],
+      "location_modifiers": [
+        "ICU",
+        "Hospital",
+        "Home",
+        "Community"
+      ]
+    },
+    "secondary_name_patterns": {
+      "demographic_groups": [
+        "Homosexual Men",
+        "Heterosexual Men",
+        "Women",
+        "Children",
+        "Adults",
+        "Elderly"
+      ],
+      "disease_progression": [
+        "presymptomatic",
+        "mild to moderate",
+        "severe",
+        "pre-ICU",
+        "post-ICU"
+      ],
+      "intervention_status": [
+        "isolated",
+        "quarantined",
+        "with ART",
+        "living with AIDS"
+      ],
+      "vaccination_status": [
+        "Vaccinated",
+        "Unvaccinated",
+        "First dose",
+        "Second dose"
+      ],
+      "transmission_route": [
+        "vector",
+        "non-vector",
+        "direct",
+        "indirect"
+      ]
+    },
+    "flow_patterns": {
+      "common_transitions": [
+        "Susceptible \u2192 Exposed",
+        "Exposed \u2192 Infectious",
+        "Infectious \u2192 Recovered",
+        "Infectious \u2192 Dead",
+        "Recovered \u2192 Susceptible (loss of immunity)",
+        "Vaccinated \u2192 Susceptible (loss of vaccine immunity)",
+        "All non-terminal compartment \u2192 Natural Death"
+      ],
+      "flow_types": {
+        "RateFlow": {
+          "description": "Rate-based transition independent of other compartment populations. Supports both numeric rates and parameter references.",
+          "examples": [
+            "Exposed \u2192 Infectious (progression)",
+            "Infectious \u2192 Recovered (recovery)",
+            "Hospital \u2192 ICU (severity progression)",
+            "Recovered \u2192 Susceptible (immunity loss)"
+          ],
+          "use_numeric_when": "Model has hardcoded rates (legacy models, simple demonstrations)",
+          "use_parametric_when": "Model needs symbolic equations, parameter reuse, or matching published papers"
+        },
+        "ContactFlow": {
+          "description": "Contact-based transmission dependent on another compartment's population. Models frequency-dependent or density-dependent transmission. Supports both numeric rates and parameter references.",
+          "examples": [
+            "Susceptible \u2192 Exposed (contact with Infectious)",
+            "Susceptible Humans \u2192 Exposed Humans (contact with Infectious Mosquitoes)",
+            "Susceptible Mosquitoes \u2192 Exposed Mosquitoes (contact with Infectious Humans)"
+          ],
+          "parameters": {
+            "contactRate or contactRateParameter": "Transmission rate per contact",
+            "contactCompartment": "Source compartment for transmission (usually Infectious or vector compartment)",
+            "contactParameters": "Legacy parameter specification (deprecated)"
+          },
+          "use_numeric_when": "Simple models with constant transmission rates",
+          "use_parametric_when": "Complex transmission (temperature-dependent, combined rates, symbolic equations)"
+        }
+      },
+      "stratification": {
+        "description": "Age-based or demographic stratification using Groups and Products",
+        "stratum_specific_rates": "Different rates can be specified for each stratum within a flow. Supports both numeric and parametric approaches.",
+        "examples": {
+          "age_groups": [
+            "0-17",
+            "18-64",
+            "65+"
+          ],
+          "demographic_groups": [
+            "Male",
+            "Female"
+          ],
+          "risk_groups": [
+            "High Risk",
+            "Low Risk"
+          ],
+          "vaccination_groups": [
+            "Vaccinated",
+            "Unvaccinated"
+          ]
+        }
+      }
+    },
+    "validation_rules": {
+      "Inflow": "Use BirthSource elements for population inflows. The inflow to a compartment which doesn't have a source (like recruitment or birth) should use birthSources rather than regular flows",
+      "Outflow": "Use DeathSink elements for population outflows. Natural death and other population losses should use deathSinks rather than flows to non-existent compartments",
+      "compartment_uniqueness": "Each (PrimaryName, SecondaryName) pair must be unique",
+      "index_consistency": "Target indices must reference existing compartments using format '//@compartments.X'",
+      "reference_consistency": "Product references must use format '//@products.X', Group references must use format '//@groups.X', Parameter references must use format '//@parameters.X'",
+      "rate_format_numeric": "For numeric modeling: All rates must be numeric values (avoid symbols). Compute a final float numeric value, not an equation.",
+      "rate_format_parametric": "For parametric modeling: Set numeric rates to 0.0 and use rateParameter/contactRateParameter references instead.",
+      "parameter_uniqueness": "Parameter names must be unique within a model",
+      "parameter_references": "All parameter references must point to existing parameters using 0-based indexing",
+      "flow_type_consistency": "Use xsi:type=\"seir:RateFlow\" for progression flows, xsi:type=\"seir:ContactFlow\" for transmission flows",
+      "stratification_consistency": "Compartments with product attribute should have stratumSpecificRates in their flows where applicable",
+      "terminal_compartments": "Terminal compartments (like Deaths, Recovered) typically have no outgoing flows (exception: loss of immunity)",
+      "contact_flow_validation": "ContactFlow must specify contactCompartment (usually an Infectious compartment) and either contactRate or contactRateParameter",
+      "stratum_validation": "stratumSpecificRates stratum values must match the values defined in the referenced Group",
+      "population_balance": "BirthSources and DeathSinks help maintain population balance in the model",
+      "description": "Even though description is optional, it would be very helpful if each flow has a brief description explaining the purpose of this flow.",
+      "unicode_support": "Parameter names support Unicode including Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03bc, \u03c1, \u03b8, \u03bb) and subscripts (\u2095, \u1d65, \u2081, \u2082)",
+      "flow_network_validation": {
+        "supply_function_required": "Flow-constrained compartments must have a supplyFunction element",
+        "junction_rule_required": "Flow network compartments must set junctionRule=\"PPFIFO\" or \"CUSTOM\"",
+        "source_node_attributes": "Source nodes (isSourceNode=true) must specify maxDemand but not maxDensity/criticalDensity/maxThroughput",
+        "constrained_node_attributes": "Constrained nodes (isSourceNode=false) must specify maxDensity, criticalDensity, maxThroughput but not maxDemand",
+        "split_ratios": "Outgoing flows from network compartments should use RateFlow with parameters representing split ratios/routing coefficients",
+        "source_node_input": "Source nodes should have a BirthSource with rateParameter for external input/demand",
+        "consistency": "All compartments in a model should be either all flow-network (with supplyFunction) or all disease (without supplyFunction)"
+      },
+      "trm_validation": {
+        "trm_type_validation": "TRM compartments must use type=\"TRM_MAK\", \"TRM_GODUNOV\", or \"TRM_CAPACITATED\"",
+        "trm_mak_omega": "TRM_MAK type requires omega attribute to be specified (reaction rate constant \u03c9)",
+        "omega_positive": "omega must be positive: \u03c9 > 0",
+        "capacity_drop_range": "capacityDropFactor must be in range (0, 1]: 0 < C_i(t) \u2264 1",
+        "dual_variable_flag": "enableDualVariable=\"true\" recommended for TRM models to track both \u03c1 and \u03bd = \u03c1_max - \u03c1",
+        "trm_base_attributes": "All TRM compartments must specify maxDensity (\u03c1_max), criticalDensity (\u03c1_crit), and maxThroughput (\u03a6_max)",
+        "extended_trm_capacity": "Extended TRM models with capacityDropFactor should use values < 1.0 to model reduced capacity scenarios",
+        "trm_compatibility": "TRM models are compatible with classical traffic models - can mix TRIANGULAR and TRM types in same network",
+        "godunov_equivalence": "TRM_GODUNOV with proper configuration is equivalent to Cell Transmission Model (CTM)"
+      }
+    },
+    "model_extensions": {
+      "traffic_networks": {
+        "description": "NEW in Version 3.0: Traffic network modeling with supply-demand dynamics and PP/FIFO junction rules",
+        "features": [
+          "Supply and demand functions for road links (triangular fundamental diagram)",
+          "PP/FIFO (Proportional Priority, First-In-First-Out) junction rules",
+          "Onramps as unbounded queues with max demand",
+          "Ordinary links with capacity constraints",
+          "Non-cooperative dynamics for traffic optimization",
+          "Backward compatible with disease models"
+        ],
+        "components": {
+          "SupplyFunction": {
+            "description": "Defines traffic flow characteristics based on vehicle density",
+            "types": {
+              "TRIANGULAR": "Standard traffic model (Daganzo 1994, Coogan & Arcak 2015)",
+              "LINEAR": "Simplified linear flow model",
+              "CUSTOM": "User-defined supply/demand functions",
+              "NONE": "No supply function (disease models)"
+            },
+            "source_nodes": {
+              "description": "Entry points with unbounded storage (e.g., onramps in traffic, generators in systems)",
+              "demand": "\u03a6^out(\u03c1) = min(max(\u03c1, maxDemand), maxDemand)",
+              "supply": "\u03a6^in(\u03c1) = \u221e",
+              "attributes": [
+                "type",
+                "isSourceNode=true",
+                "maxDemand"
+              ]
+            },
+            "constrained_nodes": {
+              "description": "Internal nodes with capacity constraints (e.g., road segments in traffic, pipes in flow networks)",
+              "demand": "\u03a6^out(\u03c1) = min((maxThroughput/criticalDensity)*\u03c1, maxThroughput) for \u03c1 \u2264 criticalDensity; maxThroughput for \u03c1 > criticalDensity",
+              "supply": "\u03a6^in(\u03c1) = maxThroughput for \u03c1 \u2264 criticalDensity; (maxThroughput/(maxDensity-criticalDensity))*(maxDensity-\u03c1) for \u03c1 > criticalDensity",
+              "attributes": [
+                "type",
+                "isSourceNode=false",
+                "maxDensity",
+                "criticalDensity",
+                "maxThroughput"
+              ]
+            }
+          },
+          "JunctionRule": {
+            "description": "Specifies how flows are computed at network junctions",
+            "types": {
+              "NONE": "No junction constraints (disease models - default)",
+              "PPFIFO": "Proportional Priority, First-In-First-Out (traffic networks)",
+              "CUSTOM": "User-defined junction rules"
+            },
+            "ppfifo_rule": {
+              "description": "\u03b1_v(\u03c1) = max{\u03b1 \u2208 [0,1] : \u03b1 \u03a3_{j\u2208incoming} \u03b2_{jk} \u03a6^out_j(\u03c1_j) \u2264 \u03a6^in_k(\u03c1_k) \u2200k\u2208outgoing}",
+              "computation": "At each time step, compute \u03b1 that satisfies downstream supply constraints",
+              "output_flow": "f^out_l(\u03c1) = \u03b1_v(\u03c1) * \u03a6^out_l(\u03c1_l) for all incoming links"
+            }
+          }
+        },
+        "dynamics": {
+          "disease_models": {
+            "description": "Standard rate-based and contact-based flows (unchanged)",
+            "equations": [
+              "dS/dt = -\u03b2*S*I (Contact flow)",
+              "dI/dt = \u03b2*S*I - \u03b3*I (Rate flow)",
+              "dR/dt = \u03b3*I (Rate flow)"
+            ]
+          },
+          "traffic_models": {
+            "description": "Supply-demand constrained flows with PP/FIFO",
+            "equations": [
+              "Onramps: d\u03c1_l/dt = d_l - f^out_l(\u03c1)",
+              "Ordinary: d\u03c1_l/dt = f^in_l(\u03c1) - f^out_l(\u03c1)"
+            ],
+            "note": "f^out and f^in computed via PP/FIFO rule with supply-demand constraints"
+          }
+        },
+        "backward_compatibility": {
+          "description": "Traffic features are fully optional - disease models work unchanged",
+          "disease_models": "Leave supplyFunction absent and junctionRule=NONE (default)",
+          "traffic_models": "Add supplyFunction element and set junctionRule=PPFIFO",
+          "detection": "Presence of supplyFunction element indicates traffic model"
+        },
+        "use_cases": {
+          "traffic_networks": [
+            "Highway traffic flow optimization",
+            "Ramp metering control",
+            "Congestion analysis",
+            "Network throughput optimization"
+          ],
+          "disease_models": [
+            "Epidemiological compartmental models (SEIR, SIR, etc.)",
+            "Vector-borne disease transmission",
+            "Age-stratified disease models",
+            "Multi-pathogen models"
+          ]
+        },
+        "examples": {
+          "source_node_traffic": {
+            "description": "Source node (onramp) with max demand 3000 vehicles/hour",
+            "xml": "<compartments PrimaryName=\"Onramp1\" population=\"0\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRIANGULAR\" isSourceNode=\"true\" maxDemand=\"3000\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.0\" target=\"//@compartments.1\"/>\n</compartments>"
+          },
+          "constrained_node_traffic": {
+            "description": "Constrained node (road link) with capacity constraints",
+            "xml": "<compartments PrimaryName=\"Link2\" population=\"37.5\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRIANGULAR\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.1\" target=\"//@compartments.2\"/>\n</compartments>"
+          },
+          "disease_compartment": {
+            "description": "Disease compartment (unchanged - no flow network features)",
+            "xml": "<compartments PrimaryName=\"Susceptible\" population=\"1000\">\n  <outgoingFlows xsi:type=\"seir:ContactFlow\" contactRateParameter=\"//@parameters.0\" contactCompartment=\"//@compartments.1\" target=\"//@compartments.1\"/>\n</compartments>"
+          }
+        },
+        "references": [
+          "Coogan, S., & Arcak, M. (2015). A Compartmental Model for Traffic Networks and its Dynamical Behavior. IEEE Trans. Automatic Control, 60(10), 2698-2703.",
+          "Daganzo, C. F. (1994). The Cell Transmission Model: A Dynamic Representation of Highway Traffic. Transportation Research Part B, 28(4), 269-287."
+        ]
+      },
+      "traffic_reaction_model": {
+        "description": "NEW in Version 3.1: Traffic Reaction Model (TRM) - A kinetic compartmental approach to road traffic modeling with flux decomposition and dual variable tracking (Pereira et al. 2024)",
+        "features": [
+          "Flux decomposition: f(\u03c1) = g(\u03c1, \u03c1_max - \u03c1) using dual variables",
+          "Dual variable tracking: \u03c1 (vehicle density) and \u03bd (free space density)",
+          "Kinetic interpretation: traffic as chemical reactions between compartments",
+          "Multiple decomposition types: MAK, Godunov, Capacitated",
+          "TRM-CTM equivalence: TRM is equivalent to Cell Transmission Model",
+          "Extended TRM: Time-varying capacity drop factors C_i(t)",
+          "Network TRM: Multi-lane intersections with incoming/outgoing flows",
+          "Fully backward compatible with classical traffic models"
+        ],
+        "mathematical_foundation": {
+          "lwr_model": "\u2202_t \u03c1 + \u2202_x f(\u03c1) = r - s (Lighthill-Whitham-Richards)",
+          "flux_decomposition": "f(\u03c1) = g(\u03c1, \u03bd) where \u03bd = \u03c1_max - \u03c1",
+          "trm_discretization": "\u03c1\u0307_i = (1/\u0394x)[F(\u03c1_{i-1}, \u03c1_i) - F(\u03c1_i, \u03c1_{i+1}) + R_i - S_i]",
+          "numerical_flux": "F(u,v) = g(u, \u03c1_max - v)",
+          "kinetic_reactions": "N_{i-1} + S_i \u2192^{\u03ba_{i-1,i}} N_i + S_{i-1}"
+        },
+        "decomposition_types": {
+          "TRM_MAK": {
+            "name": "Mass Action Kinetic decomposition",
+            "flux_formula": "g(\u03c1, \u03bd) = \u03c9\u03c1\u03bd",
+            "parameters": [
+              "omega (\u03c9): reaction rate constant"
+            ],
+            "characteristics": [
+              "Inspired by chemical reaction kinetics",
+              "Bilinear in \u03c1 and \u03bd",
+              "Simple and elegant formulation",
+              "Satisfies monotonicity and Lipschitz continuity"
+            ],
+            "use_cases": [
+              "Theoretical analysis of traffic dynamics",
+              "Studying kinetic interpretation of traffic flow",
+              "Educational purposes"
+            ]
+          },
+          "TRM_GODUNOV": {
+            "name": "Godunov decomposition",
+            "flux_formula": "g(\u03c1, \u03bd) = min(D(\u03c1), Q(\u03c1_max - \u03bd))",
+            "parameters": [
+              "D(\u03c1): demand function",
+              "Q(\u03bd): supply function"
+            ],
+            "characteristics": [
+              "Equivalent to classical Godunov scheme",
+              "Natural supply-demand interpretation",
+              "Widely used in traffic simulation",
+              "Compatible with CTM and Coogan & Arcak 2015"
+            ],
+            "use_cases": [
+              "Highway traffic simulation",
+              "Network traffic optimization",
+              "Comparison with classical CTM models",
+              "Production traffic management systems"
+            ],
+            "note": "TRM with Godunov decomposition is equivalent to CTM with specific input capacity"
+          },
+          "TRM_CAPACITATED": {
+            "name": "Capacitated decomposition",
+            "flux_formula": "g(\u03c1, \u03bd) = D(\u03c1)Q(\u03c1_max - \u03bd)/f_max",
+            "parameters": [
+              "D(\u03c1): demand function",
+              "Q(\u03bd): supply function",
+              "f_max: maximum flux"
+            ],
+            "characteristics": [
+              "Multiplicative coupling of demand and supply",
+              "Smooth variation of flux",
+              "Alternative to min-based decomposition",
+              "Satisfies required mathematical properties"
+            ],
+            "use_cases": [
+              "Smooth traffic flow modeling",
+              "Alternative to discontinuous min function",
+              "Sensitivity analysis and optimization"
+            ]
+          }
+        },
+        "dual_variable_interpretation": {
+          "description": "TRM interprets road segments as compartments with two species",
+          "vehicle_density": "\u03c1_i(t) = N_i(t)/\u0394x (occupied space per unit length)",
+          "free_space_density": "\u03bd_i(t) = S_i(t)/\u0394x = \u03c1_max - \u03c1_i(t)",
+          "conservation": "N_i + S_i = \u03c1_max * \u0394x (constant total capacity)",
+          "kinetic_reaction": "N_{i-1} + S_i \u2192^{\u03ba_{i-1,i}} N_i + S_{i-1}",
+          "reaction_rate": "\u03ba_{i-1,i} = (1/\u0394x) * g(\u03c1_{i-1}, \u03bd_i)",
+          "benefits": [
+            "Enables application of reaction network theory",
+            "Lyapunov stability analysis using entropy functions",
+            "Persistence guarantees (no trajectories reach boundary)",
+            "Connection to chemical reaction network theory"
+          ]
+        },
+        "extended_trm": {
+          "description": "Extended TRM with time-varying capacity drop factors",
+          "capacity_drop": "C_i(t) \u2208 (0, 1] models reduced capacity",
+          "modified_flux": "g(\u03c1, \u03bd) with \u03bd = C_i(t) * \u03c1_max - \u03c1",
+          "applications": [
+            "Traffic incidents reducing capacity",
+            "Construction zones",
+            "Weather conditions (rain, fog, snow)",
+            "Variable speed limits",
+            "Time-of-day lane usage"
+          ],
+          "implementation": "Set capacityDropFactor attribute in supplyFunction"
+        },
+        "network_trm": {
+          "description": "Extension to road networks with junctions",
+          "junction_dynamics": "\u03c1\u0307_i = (1/\u0394x)[\u03a3_k F_k(incoming) - \u03a3_j F_j(outgoing)]",
+          "multi_lane_support": "Multiple incoming and outgoing flows",
+          "compatibility": "Works with existing PP/FIFO junction rules",
+          "routing": "Uses RateFlow with split ratio parameters"
+        },
+        "trm_ctm_equivalence": {
+          "description": "TRM with Godunov decomposition is equivalent to CTM",
+          "equivalence_condition": "Input capacity u^in_i = Q(\u03c1_max - \u03c1_{i-1})",
+          "key_insight": "TRM provides kinetic interpretation of CTM",
+          "practical_impact": "TRM and CTM produce identical simulation results when properly configured"
+        },
+        "stability_analysis": {
+          "description": "TRM inherits stability properties from reaction network theory",
+          "persistence": "All trajectories remain in interior of state space",
+          "lyapunov_functions": "Entropy-like functions from chemical kinetics",
+          "equilibrium_uniqueness": "Unique equilibrium under feasibility conditions",
+          "asymptotic_stability": "Equilibria are asymptotically stable"
+        },
+        "model_structure": {
+          "compartments": {
+            "description": "Road segments as compartments with supplyFunction element",
+            "required_attributes": [
+              "PrimaryName",
+              "population (initial density)",
+              "junctionRule"
+            ],
+            "supply_function_type": "TRM_MAK, TRM_GODUNOV, or TRM_CAPACITATED",
+            "dual_variable_flag": "enableDualVariable=\"true\" for kinetic interpretation"
+          },
+          "parameters": {
+            "description": "TRM-specific parameters",
+            "examples": [
+              "\u03c9: reaction rate constant for MAK",
+              "\u03c1_max: maximum density (jam density)",
+              "\u03c1_crit: critical density",
+              "\u03a6_max: maximum flux",
+              "C_i(t): capacity drop factor",
+              "\u0394x: cell length"
+            ]
+          },
+          "flows": {
+            "description": "Use RateFlow for routing between segments",
+            "split_ratios": "Parameters represent routing coefficients",
+            "junction_rule": "Set junctionRule=\"PPFIFO\" or \"NONE\" for exit cells"
+          }
+        },
+        "examples": {
+          "trm_mak_cell": {
+            "description": "TRM cell with MAK decomposition",
+            "xml": "<compartments PrimaryName=\"Cell1\" population=\"50\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_MAK\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" omega=\"0.001\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.0\" target=\"//@compartments.1\"/>\n</compartments>"
+          },
+          "trm_godunov_cell": {
+            "description": "TRM cell with Godunov decomposition (CTM-equivalent)",
+            "xml": "<compartments PrimaryName=\"Cell2\" population=\"75\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_GODUNOV\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.1\" target=\"//@compartments.2\"/>\n</compartments>"
+          },
+          "extended_trm_cell": {
+            "description": "Extended TRM with capacity drop (incident zone)",
+            "xml": "<compartments PrimaryName=\"IncidentZone\" population=\"120\" junctionRule=\"PPFIFO\">\n  <supplyFunction type=\"TRM_CAPACITATED\" isSourceNode=\"false\" maxDensity=\"360\" criticalDensity=\"90\" maxThroughput=\"3000\" capacityDropFactor=\"0.6\" enableDualVariable=\"true\"/>\n  <outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.2\" target=\"//@compartments.3\"/>\n</compartments>"
+          }
+        },
+        "backward_compatibility": {
+          "description": "TRM features are fully optional - classical traffic models work unchanged",
+          "classical_traffic": "Use type=\"TRIANGULAR\" without TRM-specific attributes",
+          "trm_models": "Use type=\"TRM_MAK\", \"TRM_GODUNOV\", or \"TRM_CAPACITATED\"",
+          "detection": "Equation generator automatically detects TRM types"
+        },
+        "use_cases": {
+          "trm_applications": [
+            "Highway traffic simulation with kinetic interpretation",
+            "Stability analysis using reaction network theory",
+            "Comparison between different flux decompositions",
+            "Extended TRM for incident modeling",
+            "Network TRM for complex intersections",
+            "Educational: understanding traffic as reactions"
+          ]
+        },
+        "references": [
+          "Pereira, F. L., Figueiredo, J., & Ramos, C. C. (2024). The Traffic Reaction Model: A kinetic compartmental approach to road traffic modeling. Transportation Research Part B, 179, 102871.",
+          "Coogan, S., & Arcak, M. (2015). A Compartmental Model for Traffic Networks and its Dynamical Behavior. IEEE Trans. Automatic Control, 60(10), 2698-2703.",
+          "Daganzo, C. F. (1995). The Cell Transmission Model, Part II: Network Traffic. Transportation Research Part B, 29(2), 79-93."
+        ]
+      },
+      "parameter_system": {
+        "description": "NEW in Version 2.0: Comprehensive parameter system for symbolic/parametric modeling",
+        "features": [
+          "Three parameter types: CONSTANT, VARIABLE, EXPRESSION",
+          "Parameter references in RateFlow, ContactFlow, BirthSource, DeathSink, StratumSpecificRate",
+          "Unicode support for Greek symbols and mathematical notation",
+          "Separation of model structure from parameter values",
+          "Automatic equation generation with symbolic output"
+        ],
+        "benefits": [
+          "Reusability: Change parameters without modifying model structure",
+          "Documentation: Parameters carry descriptions and units",
+          "Professional output: Equations match published papers (\u03b2\u2081, \u03bc\u2095 instead of 0.9969, 0.001384)",
+          "Environmental dependencies: Temperature, rainfall, intervention levels",
+          "Backward compatibility: Existing numeric models continue working"
+        ]
+      },
+      "stratification_system": {
+        "description": "Stratification system using Groups and Products",
+        "Groups": "Define demographic or risk categories (e.g., age groups, gender, risk levels)",
+        "Products": "Combine multiple groups for complex stratification",
+        "compartment_stratification": "Compartments can reference a Product to be automatically stratified"
+      },
+      "flow_enhancements": {
+        "abstract_flows": "Flow is now abstract with RateFlow and ContactFlow as concrete implementations",
+        "stratum_specific_rates": "Both RateFlow and ContactFlow support different rates for different strata (numeric or parametric)",
+        "contact_modeling": "ContactFlow enables sophisticated transmission modeling with contact compartments",
+        "parameter_references": "All flows can reference parameters instead of using numeric attributes"
+      },
+      "population_dynamics": {
+        "BirthSource": "Models population inflow (births, immigration, recruitment). Supports numeric rates and parameter references.",
+        "DeathSink": "Models population outflow (deaths, emigration). Supports numeric rates and parameter references.",
+        "global_rates": "SEIRModel can specify totalPopulation, globalBirthRate, globalDeathRate"
+      },
+      "diagram_support": {
+        "description": "Sirius diagrams intelligently display parameter names or numeric values",
+        "implementation": "AQL expressions check for parameter references using ->notEmpty(), displaying parameter names when available or numeric values otherwise",
+        "greek_symbols": "Full Unicode support in diagram labels for professional mathematical notation"
+      },
+      "equation_generation": {
+        "description": "SEIREquationGenerator produces symbolic equations for parametric models",
+        "features": [
+          "Parameter names in equations (\u03b3\u2095, \u03c1\u2095, \u03b2\u2081) instead of numbers (0.120342, 0.001995, 0.9969)",
+          "EXPRESSION parameters expanded in equations",
+          "Backward compatible with numeric models",
+          "Output matches mathematical notation in published papers"
+        ]
+      }
+    },
+    "modeling_approaches": {
+      "numeric_modeling": {
+        "description": "Traditional approach using hardcoded numeric values",
+        "when_to_use": [
+          "Legacy models",
+          "Simple demonstrations",
+          "Quick prototypes",
+          "Models without parameter reuse"
+        ],
+        "example_snippet": "<outgoingFlows xsi:type=\"seir:RateFlow\" rate=\"0.120342\" target=\"//@compartments.3\"/>",
+        "limitations": [
+          "Equations show numbers instead of symbolic names",
+          "Hard to track which number represents which parameter",
+          "Changing a parameter value requires finding all uses",
+          "Doesn't match mathematical notation in papers"
+        ]
+      },
+      "parametric_modeling": {
+        "description": "NEW approach using named parameters with references",
+        "when_to_use": [
+          "Published models needing to match paper equations",
+          "Models with environmental dependencies (temperature, rainfall)",
+          "Models requiring parameter reuse",
+          "Complex models with many parameters",
+          "Models needing professional mathematical notation"
+        ],
+        "example_snippet": "<parameters name=\"\u03b3\u2095\" expression=\"0.120342\" description=\"Recovery rate Ih to Rh\" unit=\"1/time\"/>\n<outgoingFlows xsi:type=\"seir:RateFlow\" rateParameter=\"//@parameters.9\" target=\"//@compartments.3\"/>",
+        "benefits": [
+          "Equations show symbolic names (\u03b3\u2095, \u03bc\u2095, \u03b2\u2081)",
+          "Parameters documented with descriptions and units",
+          "Easy to change parameter values in one place",
+          "Supports Greek symbols and professional notation",
+          "Matches published papers exactly",
+          "Enables sensitivity analysis and parameter sweeps"
+        ]
+      },
+      "mixed_modeling": {
+        "description": "Combination of numeric and parametric approaches in the same model",
+        "when_to_use": "Transitioning from numeric to parametric, or when only some parameters need symbolic representation",
+        "priority": "Parameter references take precedence over numeric attributes when both are present"
+      }
+    },
+    "best_practices": {
+      "model_type_selection": {
+        "disease_models": "Use standard compartments with rate-based and contact-based flows. Do not add supplyFunction or set junctionRule.",
+        "traffic_models": "Use compartments with supplyFunction element and junctionRule=\"PPFIFO\". Use parameters for split ratios (\u03b2) and supply/demand function parameters.",
+        "mixed_models": "Not recommended - keep disease and traffic models separate for clarity"
+      },
+      "flow_network_design": [
+        "Define source nodes with isSourceNode=true and maxDemand parameter",
+        "Define constrained nodes with isSourceNode=false and maxDensity, criticalDensity, maxThroughput parameters",
+        "Use RateFlow with routing coefficient parameters (e.g., \u03b2_{lk} for split ratios in traffic) for routing",
+        "Use BirthSource for source node external input/demand (e.g., d_l in traffic)",
+        "Set junctionRule=\"PPFIFO\" for all flow network compartments",
+        "Use Parameters for all network-specific values (allows easy modification and sensitivity analysis)"
+      ],
+      "parameter_naming": [
+        "Disease models: Use Greek symbols (\u03b2 for transmission, \u03bc for mortality, \u03b3 for recovery, \u03c1 for progression)",
+        "Traffic models: Use standard notation (\u03c1 for density, \u03a6 for flow, \u03b2 for split ratio)",
+        "Use subscripts to distinguish entities (\u03bc\u2095 for human, \u03bc\u1d65 for vector, \u03b2_{12} for split ratio link 1\u21922)",
+        "Use function notation for dependencies: a(T) for temperature-dependent, \u03b8\u1d65(T,R) for temperature and rainfall",
+        "Keep names concise but meaningful"
+      ],
+      "parameter_organization": [
+        "Define CONSTANT parameters first",
+        "Then VARIABLE parameters (environmental inputs)",
+        "Then EXPRESSION parameters (computed from others)",
+        "Group related parameters together",
+        "Always provide descriptions and units"
+      ],
+      "model_structure": [
+        "Use BirthSource for all population inflows (not flows from nowhere)",
+        "Use DeathSink for all population outflows (not flows to nowhere)",
+        "Use RateFlow for progression, recovery, immunity loss",
+        "Use ContactFlow for transmission and infection",
+        "Always provide flow descriptions"
+      ],
+      "parametric_vs_numeric": [
+        "For new models: Use parametric approach for better maintainability",
+        "For existing models: Can keep numeric or migrate to parametric",
+        "When using parametric: Set numeric attributes to 0.0",
+        "When unsure: Start parametric, easier to maintain long-term"
+      ]
+    },
+    "unicode_reference": {
+      "greek_letters": {
+        "lowercase": "\u03b1 (alpha), \u03b2 (beta), \u03b3 (gamma), \u03b4 (delta), \u03b5 (epsilon), \u03b8 (theta), \u03bb (lambda), \u03bc (mu), \u03c1 (rho), \u03c3 (sigma), \u03c6 (phi), \u03c9 (omega)",
+        "uppercase": "\u0393 (Gamma), \u0394 (Delta), \u0398 (Theta), \u039b (Lambda), \u03a3 (Sigma), \u03a6 (Phi), \u03a9 (Omega)"
+      },
+      "subscripts": "\u2080 \u2081 \u2082 \u2083 \u2084 \u2085 \u2086 \u2087 \u2088 \u2089 \u2090 \u2091 \u2095 \u1d62 \u2c7c \u2096 \u2097 \u2098 \u2099 \u2092 \u209a \u1d63 \u209b \u209c \u1d64 \u1d65 \u2093",
+      "superscripts": "\u2070 \u00b9 \u00b2 \u00b3 \u2074 \u2075 \u2076 \u2077 \u2078 \u2079 \u207a \u207b \u207c \u207d \u207e",
+      "common_combinations": {
+        "\u03bc\u2095": "mu_h (human mortality)",
+        "\u03bc\u1d65": "mu_v (vector mortality)",
+        "\u03b2\u2081": "beta1 (transmission probability 1)",
+        "\u03b2\u2082": "beta2 (transmission probability 2)",
+        "\u03b3\u2095": "gamma_h (human recovery rate)",
+        "\u03c1\u2095": "rho_h (human progression rate)",
+        "\u03b8\u1d65": "theta_v (vector recruitment)",
+        "\u03b1\u2095": "alpha_h (human recruitment)",
+        "\u039b\u2098": "Lambda_m (mosquito progression)"
+      }
+    }
+  }
+}
+********************************************************************************
+User Input:
+HIV/AIDS MODEL WITH SEXUAL BEHAVIOR STRATIFICATION 
+ MODEL TYPE: Parametric (use named parameters with Greek symbols) 
+ COMPARTMENTS: 
+ Create 4 base compartments, each stratified by SexualBehavior group: 
+ - Susceptible (no secondary name) 
+ - Infectious, Untreated (secondary name: "Untreated") 
+ - Treated, with ART (secondary name: "with ART") 
+ - Infectious, living with AIDS (secondary name: "living with AIDS") 
+ STRATIFICATION: 
+ Group name: SexualBehavior 
+ Group values: Homosexual Men, Women, Heterosexual Men 
+ Product name: SexualBehaviorProduct 
+ Product description: Stratification by sexual behavior 
+ All 4 compartments use this product for stratification. 
+ INITIAL POPULATIONS: 
+ Susceptible: Homosexual Men=2446, Women=189994, Heterosexual Men=171173 
+ Infectious (Untreated): Homosexual Men=79, Women=6, Heterosexual Men=29 
+ Treated: 107 total (no stratification for initial value) 
+ Infectious (AIDS): 47 total (no stratification for initial value) 
+ PARAMETERS: 
+ Create these parameters in order with exact names, expressions, descriptions, and units: 
+ Ψ | CONSTANT | 333 | Recruitment rate into susceptible population | individuals/year 
+ θ | CONSTANT | 0.48 | Proportion of men in population | dimensionless 
+ γ | CONSTANT | 0.92 | Proportion of heterosexual men among all men | dimensionless 
+ p | CONSTANT | 0.90 | Proportion of infected receiving initial treatment | dimensionless 
+ μ | CONSTANT | 0.0129 | Natural mortality rate | 1/year 
+ d | CONSTANT | 0.3333 | AIDS-induced mortality rate | 1/year 
+ δ | CONSTANT | 0.018 | AIDS development rate in treated individuals | 1/year 
+ α | CONSTANT | 0.3333 | Departure rate from infected compartments | 1/year 
+ β_h | CONSTANT | 0.44 | Probability of homosexual transmission | dimensionless 
+ β_s | CONSTANT | 0.02 | Probability of heterosexual transmission | dimensionless 
+ β_hw | CONSTANT | 0.018 | Probability of transmission homosexual men to women | dimensionless 
+ β_hm | CONSTANT | 0.25 | Probability of transmission homosexual men to heterosexual men | dimensionless 
+ c_h | CONSTANT | 7 | Sexual partners rate for homosexuals | 1/year 
+ c_s | CONSTANT | 4 | Sexual partners rate for heterosexuals | 1/year 
+ c_hw | CONSTANT | 2 | Sexual partners rate homosexual men and women | 1/year 
+ c_hm | CONSTANT | 1 | Sexual partners rate homosexual and heterosexual men | 1/year 
+ B_h | EXPRESSION | β_h * c_h | Combined transmission rate homosexuals | 1/year 
+ B_s | EXPRESSION | β_s * c_s | Combined transmission rate heterosexuals | 1/year 
+ B_hw | EXPRESSION | β_hw * c_hw | Combined transmission rate homosexual to women | 1/year 
+ B_hm | EXPRESSION | β_hm * c_hm | Combined transmission rate homosexual to heterosexual men | 1/year 
+ Ψθ(1-γ) | EXPRESSION | Ψ * θ * (1 - γ) | Recruitment rate homosexual men | individuals/year 
+ Ψ(1-θ) | EXPRESSION | Ψ * (1 - θ) | Recruitment rate women | individuals/year 
+ Ψθγ | EXPRESSION | Ψ * θ * γ | Recruitment rate heterosexual men | individuals/year 
+ αp | EXPRESSION | α * p | Treatment initiation rate | 1/year 
+ α(1-p) | EXPRESSION | α * (1 - p) | AIDS progression rate untreated | 1/year 
+ λ_h | EXPRESSION | B_h * (I_h / (S_h + I_h)) | Force of infection homosexual men | 1/year 
+ λ_hw | EXPRESSION | B_hw * (I_h / (S_m + S_h + I_m + I_h)) | Force of infection homosexual to women | 1/year 
+ λ_hm | EXPRESSION | B_hm * (I_h / (S_m + S_h + I_m + I_h)) | Force of infection homosexual to heterosexual men | 1/year 
+ λ_m | EXPRESSION | B_s * (I_m / (S_m + I_m)) | Force of infection heterosexual men | 1/year 
+ λ_w | EXPRESSION | B_s * (I_w / (S_w + I_w)) | Force of infection women | 1/year 
+ FLOWS: 
+ All flows reference parameters not numeric values. 
+ Flow 1: Susceptible to Infectious (Untreated) 
+ Type: ContactFlow 
+ Source: Susceptible compartment 
+ Target: Infectious (Untreated) compartment 
+ Description: Infection through sexual contact 
+ Contact compartment: Infectious (Untreated) compartment 
+ Stratum-specific contact rate parameters: 
+   Homosexual Men: use λ_h parameter 
+   Women: use λ_m parameter (women infected by heterosexual men Iw) 
+   Heterosexual Men: use λ_w parameter (heterosexual men infected by women Im) 
+ Note: This represents within-group transmission. 
+ Flow 2: Susceptible to Infectious (Untreated) - Cross transmission homosexual to women 
+ Type: ContactFlow 
+ Source: Susceptible compartment 
+ Target: Infectious (Untreated) compartment 
+ Description: Cross-infection from homosexual men to women 
+ Contact compartment: Infectious (Untreated) compartment 
+ Stratum-specific contact rate parameters: 
+   Homosexual Men: rate=0 (no flow) 
+   Women: use λ_hw parameter 
+   Heterosexual Men: rate=0 (no flow) 
+ Flow 3: Susceptible to Infectious (Untreated) - Cross transmission homosexual to heterosexual men 
+ Type: ContactFlow 
+ Source: Susceptible compartment 
+ Target: Infectious (Untreated) compartment 
+ Description: Cross-infection from homosexual men to heterosexual men 
+ Contact compartment: Infectious (Untreated) compartment 
+ Stratum-specific contact rate parameters: 
+   Homosexual Men: rate=0 (no flow) 
+   Women: rate=0 (no flow) 
+   Heterosexual Men: use λ_hm parameter 
+ Flow 4: Infectious (Untreated) to Treated 
+ Type: RateFlow 
+ Source: Infectious (Untreated) compartment 
+ Target: Treated compartment 
+ Description: Initial treatment with antiretrovirals 
+ Rate parameter: αp (same for all strata) 
+ Flow 5: Infectious (Untreated) to Infectious (AIDS) 
+ Type: RateFlow 
+ Source: Infectious (Untreated) compartment 
+ Target: Infectious (AIDS) compartment 
+ Description: Progression to AIDS without treatment 
+ Rate parameter: α(1-p) (same for all strata) 
+ Flow 6: Treated to Infectious (AIDS) 
+ Type: RateFlow 
+ Source: Treated compartment 
+ Target: Infectious (AIDS) compartment 
+ Description: Treatment failure progression to AIDS 
+ Rate parameter: δ (same for all strata) 
+ BIRTH SOURCES: 
+ All reference parameters not numeric values. 
+ Birth 1: 
+ Name: Recruitment of Homosexual Men 
+ Rate parameter: Ψθ(1-γ) 
+ Target: Susceptible compartment 
+ Target stratum: Homosexual Men 
+ Birth 2: 
+ Name: Recruitment of Women 
+ Rate parameter: Ψ(1-θ) 
+ Target: Susceptible compartment 
+ Target stratum: Women 
+ Birth 3: 
+ Name: Recruitment of Heterosexual Men 
+ Rate parameter: Ψθγ 
+ Target: Susceptible compartment 
+ Target stratum: Heterosexual Men 
+ DEATH SINKS: 
+ Natural death from all compartments all strata: 
+ For Susceptible compartment: 
+   Natural Death from Susceptible (Homosexual Men) - rate parameter μ - source Susceptible - stratum Homosexual Men 
+   Natural Death from Susceptible (Women) - rate parameter μ - source Susceptible - stratum Women 
+   Natural Death from Susceptible (Heterosexual Men) - rate parameter μ - source Susceptible - stratum Heterosexual Men 
+ For Infectious Untreated compartment: 
+   Natural Death from Untreated Infected (Homosexual Men) - rate parameter μ - source Infectious Untreated - stratum Homosexual Men 
+   Natural Death from Untreated Infected (Women) - rate parameter μ - source Infectious Untreated - stratum Women 
+   Natural Death from Untreated Infected (Heterosexual Men) - rate parameter μ - source Infectious Untreated - stratum Heterosexual Men 
+ For Treated compartment: 
+   Natural Death from Treated (Homosexual Men) - rate parameter μ - source Treated - stratum Homosexual Men 
+   Natural Death from Treated (Women) - rate parameter μ - source Treated - stratum Women 
+   Natural Death from Treated (Heterosexual Men) - rate parameter μ - source Treated - stratum Heterosexual Men 
+ For Infectious AIDS compartment: 
+   Natural Death from AIDS (Homosexual Men) - rate parameter μ - source Infectious AIDS - stratum Homosexual Men 
+   Natural Death from AIDS (Women) - rate parameter μ - source Infectious AIDS - stratum Women 
+   Natural Death from AIDS (Heterosexual Men) - rate parameter μ - source Infectious AIDS - stratum Heterosexual Men 
+ AIDS-induced death from AIDS compartment only: 
+   AIDS Death (Homosexual Men) - rate parameter d - source Infectious AIDS - stratum Homosexual Men 
+   AIDS Death (Women) - rate parameter d - source Infectious AIDS - stratum Women 
+   AIDS Death (Heterosexual Men) - rate parameter d - source Infectious AIDS - stratum Heterosexual Men
+********************************************************************************
+LLM1 RESPONSE:
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Reasoning:
+- Creating 4 base compartments each stratified by the SexualBehavior group: Susceptible, Infectious (Untreated), Treated (with ART), Infectious (living with AIDS).
+- Stratification group: SexualBehavior with values Homosexual Men, Women, Heterosexual Men.
+- Product: SexualBehaviorProduct for stratification of all compartments.
+- Initial populations are provided for each stratum in the Susceptible and Infectious (Untreated) compartments.
+- Parameters total: 25 with named Greek symbols, some as expressions.
+- Flows: 6 flows created as per user: 3 ContactFlows for infection and 3 RateFlows for progression.
+- BirthSources: 3, each referencing parametric rates for stratified recruitment.
+- DeathSinks: implemented for both natural and AIDS-induced mortality across all compartments and strata.
+-->
+
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups name="SexualBehavior">
+      <values>Homosexual Men</values>
+      <values>Women</values>
+      <values>Heterosexual Men</values>
+    </groups>
+  </products>
+  
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.12" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.24"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.28"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.26"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
+      <stratumSpecificRates stratum="Women" rate="0.0"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.25"/>
+    </outgoingFlows>
+  </compartments>
+  
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0"/>
+
+  <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0"/>
+  
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
+  
+  <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
+  <parameters name="θ" expression="0.48" description="Proportion of men in population" unit="dimensionless"/>
+  <parameters name="γ" expression="0.92" description="Proportion of heterosexual men among all men" unit="dimensionless"/>
+  <parameters name="p" expression="0.90" description="Proportion of infected receiving initial treatment" unit="dimensionless"/>
+  <parameters name="μ" expression="0.0129" description="Natural mortality rate" unit="1/year"/>
+  <parameters name="d" expression="0.3333" description="AIDS-induced mortality rate" unit="1/year"/>
+  <parameters name="δ" expression="0.018" description="AIDS development rate in treated individuals" unit="1/year"/>
+  <parameters name="α" expression="0.3333" description="Departure rate from infected compartments" unit="1/year"/>
+  <parameters name="β_h" expression="0.44" description="Probability of homosexual transmission" unit="dimensionless"/>
+  <parameters name="β_s" expression="0.02" description="Probability of heterosexual transmission" unit="dimensionless"/>
+  <parameters name="β_hw" expression="0.018" description="Probability of transmission homosexual men to women" unit="dimensionless"/>
+  <parameters name="β_hm" expression="0.25" description="Probability of transmission homosexual men to heterosexual men" unit="dimensionless"/>
+  <parameters name="c_h" expression="7" description="Sexual partners rate for homosexuals" unit="1/year"/>
+  <parameters name="c_s" expression="4" description="Sexual partners rate for heterosexuals" unit="1/year"/>
+  <parameters name="c_hw" expression="2" description="Sexual partners rate homosexual men and women" unit="1/year"/>
+  <parameters name="c_hm" expression="1" description="Sexual partners rate homosexual and heterosexual men" unit="1/year"/>
+  <parameters name="B_h" type="EXPRESSION" expression="β_h * c_h" description="Combined transmission rate homosexuals" unit="1/year"/>
+  <parameters name="B_s" type="EXPRESSION" expression="β_s * c_s" description="Combined transmission rate heterosexuals" unit="1/year"/>
+  <parameters name="B_hw" type="EXPRESSION" expression="β_hw * c_hw" description="Combined transmission rate homosexual to women" unit="1/year"/>
+  <parameters name="B_hm" type="EXPRESSION" expression="β_hm * c_hm" description="Combined transmission rate homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="Ψθ(1-γ)" type="EXPRESSION" expression="Ψ * θ * (1 - γ)" description="Recruitment rate homosexual men" unit="individuals/year"/>
+  <parameters name="Ψ(1-θ)" type="EXPRESSION" expression="Ψ * (1 - θ)" description="Recruitment rate women" unit="individuals/year"/>
+  <parameters name="Ψθγ" type="EXPRESSION" expression="Ψ * θ * γ" description="Recruitment rate heterosexual men" unit="individuals/year"/>
+  <parameters name="αp" type="EXPRESSION" expression="α * p" description="Treatment initiation rate" unit="1/year"/>
+  <parameters name="α(1-p)" type="EXPRESSION" expression="α * (1 - p)" description="AIDS progression rate untreated" unit="1/year"/>
+  <parameters name="λ_h" type="EXPRESSION" expression="B_h * (I_h / (S_h + I_h))" description="Force of infection homosexual men" unit="1/year"/>
+  <parameters name="λ_hw" type="EXPRESSION" expression="B_hw * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to women" unit="1/year"/>
+  <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
+  <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+  
+  <birthSources>
+    <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+    <birthSources name="Recruitment of Women" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
+    <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  </birthSources>
+  
+  <deathSinks>
+    <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  </deathSinks>
+</seir:SEIRModel>
+********************************************************************************
+
+********************************************************************************
+LLM2 PROMPT:
+You are an expert at mapping epidemiological parameter values into XML compartmental model files.
+
+Your task is to take a structurally correct XML file with placeholder values and fill in the actual numeric values from the user input, following the v3 metamodel.
+
+**Your Job**
+- For PARAMETRIC models: Parameter values are already defined in <parameters> elements. You do NOT need to modify anything. The XML is complete.
+- For NUMERIC models: Find all [[rate_missing]] placeholders in numeric attributes (e.g., rate, contactRate, or equivalent). Replace each with the corresponding numeric value from the user input.
+
+**Mapping Rules - DO NOT CALCULATE**
+- Your job is ONLY to map values from user input to XML placeholders.
+- If user input says "rate = 0.3333", write 0.3333 in the XML.
+- If user input references a named parameter, copy its numeric value exactly.
+- DO NOT perform arithmetic operations.
+- DO NOT evaluate expressions.
+- DO NOT compute formulas.
+
+**Handling Missing Values**
+- If a required value is not provided in user input, replace [[rate_missing]] with 0.0 and add an XML comment explaining what was missing.
+- Never leave [[rate_missing]] in the output.
+- Never invent values.
+
+**Stratification**
+- If a flow has stratum-specific numeric values, map the value for each stratum separately.
+- If user input indicates a stratum has rate 0, write 0.0.
+- Ensure stratum identifiers match exactly.
+
+**Reasoning**
+- For each modification, add an XML comment above explaining:
+  * Which placeholder you're replacing
+  * What value you're using from user input
+  * Which compartment/flow/stratum this applies to
+  * If you're inserting 0.0 due to missing data, explain what was missing
+
+**Output Format**
+- Complete, valid XML with all placeholders replaced
+- Include reasoning as XML comments before each modified section
+- No markdown formatting, no code fences, no explanatory text outside XML comments
+- Full precision for all numeric values (do not round)
+- The output must be directly parseable as XML
+********************************************************************************
+USER INPUT:
+HIV/AIDS MODEL WITH SEXUAL BEHAVIOR STRATIFICATION 
+ MODEL TYPE: Parametric (use named parameters with Greek symbols) 
+ COMPARTMENTS: 
+ Create 4 base compartments, each stratified by SexualBehavior group: 
+ - Susceptible (no secondary name) 
+ - Infectious, Untreated (secondary name: "Untreated") 
+ - Treated, with ART (secondary name: "with ART") 
+ - Infectious, living with AIDS (secondary name: "living with AIDS") 
+ STRATIFICATION: 
+ Group name: SexualBehavior 
+ Group values: Homosexual Men, Women, Heterosexual Men 
+ Product name: SexualBehaviorProduct 
+ Product description: Stratification by sexual behavior 
+ All 4 compartments use this product for stratification. 
+ INITIAL POPULATIONS: 
+ Susceptible: Homosexual Men=2446, Women=189994, Heterosexual Men=171173 
+ Infectious (Untreated): Homosexual Men=79, Women=6, Heterosexual Men=29 
+ Treated: 107 total (no stratification for initial value) 
+ Infectious (AIDS): 47 total (no stratification for initial value) 
+ PARAMETERS: 
+ Create these parameters in order with exact names, expressions, descriptions, and units: 
+ Ψ | CONSTANT | 333 | Recruitment rate into susceptible population | individuals/year 
+ θ | CONSTANT | 0.48 | Proportion of men in population | dimensionless 
+ γ | CONSTANT | 0.92 | Proportion of heterosexual men among all men | dimensionless 
+ p | CONSTANT | 0.90 | Proportion of infected receiving initial treatment | dimensionless 
+ μ | CONSTANT | 0.0129 | Natural mortality rate | 1/year 
+ d | CONSTANT | 0.3333 | AIDS-induced mortality rate | 1/year 
+ δ | CONSTANT | 0.018 | AIDS development rate in treated individuals | 1/year 
+ α | CONSTANT | 0.3333 | Departure rate from infected compartments | 1/year 
+ β_h | CONSTANT | 0.44 | Probability of homosexual transmission | dimensionless 
+ β_s | CONSTANT | 0.02 | Probability of heterosexual transmission | dimensionless 
+ β_hw | CONSTANT | 0.018 | Probability of transmission homosexual men to women | dimensionless 
+ β_hm | CONSTANT | 0.25 | Probability of transmission homosexual men to heterosexual men | dimensionless 
+ c_h | CONSTANT | 7 | Sexual partners rate for homosexuals | 1/year 
+ c_s | CONSTANT | 4 | Sexual partners rate for heterosexuals | 1/year 
+ c_hw | CONSTANT | 2 | Sexual partners rate homosexual men and women | 1/year 
+ c_hm | CONSTANT | 1 | Sexual partners rate homosexual and heterosexual men | 1/year 
+ B_h | EXPRESSION | β_h * c_h | Combined transmission rate homosexuals | 1/year 
+ B_s | EXPRESSION | β_s * c_s | Combined transmission rate heterosexuals | 1/year 
+ B_hw | EXPRESSION | β_hw * c_hw | Combined transmission rate homosexual to women | 1/year 
+ B_hm | EXPRESSION | β_hm * c_hm | Combined transmission rate homosexual to heterosexual men | 1/year 
+ Ψθ(1-γ) | EXPRESSION | Ψ * θ * (1 - γ) | Recruitment rate homosexual men | individuals/year 
+ Ψ(1-θ) | EXPRESSION | Ψ * (1 - θ) | Recruitment rate women | individuals/year 
+ Ψθγ | EXPRESSION | Ψ * θ * γ | Recruitment rate heterosexual men | individuals/year 
+ αp | EXPRESSION | α * p | Treatment initiation rate | 1/year 
+ α(1-p) | EXPRESSION | α * (1 - p) | AIDS progression rate untreated | 1/year 
+ λ_h | EXPRESSION | B_h * (I_h / (S_h + I_h)) | Force of infection homosexual men | 1/year 
+ λ_hw | EXPRESSION | B_hw * (I_h / (S_m + S_h + I_m + I_h)) | Force of infection homosexual to women | 1/year 
+ λ_hm | EXPRESSION | B_hm * (I_h / (S_m + S_h + I_m + I_h)) | Force of infection homosexual to heterosexual men | 1/year 
+ λ_m | EXPRESSION | B_s * (I_m / (S_m + I_m)) | Force of infection heterosexual men | 1/year 
+ λ_w | EXPRESSION | B_s * (I_w / (S_w + I_w)) | Force of infection women | 1/year 
+ FLOWS: 
+ All flows reference parameters not numeric values. 
+ Flow 1: Susceptible to Infectious (Untreated) 
+ Type: ContactFlow 
+ Source: Susceptible compartment 
+ Target: Infectious (Untreated) compartment 
+ Description: Infection through sexual contact 
+ Contact compartment: Infectious (Untreated) compartment 
+ Stratum-specific contact rate parameters: 
+   Homosexual Men: use λ_h parameter 
+   Women: use λ_m parameter (women infected by heterosexual men Iw) 
+   Heterosexual Men: use λ_w parameter (heterosexual men infected by women Im) 
+ Note: This represents within-group transmission. 
+ Flow 2: Susceptible to Infectious (Untreated) - Cross transmission homosexual to women 
+ Type: ContactFlow 
+ Source: Susceptible compartment 
+ Target: Infectious (Untreated) compartment 
+ Description: Cross-infection from homosexual men to women 
+ Contact compartment: Infectious (Untreated) compartment 
+ Stratum-specific contact rate parameters: 
+   Homosexual Men: rate=0 (no flow) 
+   Women: use λ_hw parameter 
+   Heterosexual Men: rate=0 (no flow) 
+ Flow 3: Susceptible to Infectious (Untreated) - Cross transmission homosexual to heterosexual men 
+ Type: ContactFlow 
+ Source: Susceptible compartment 
+ Target: Infectious (Untreated) compartment 
+ Description: Cross-infection from homosexual men to heterosexual men 
+ Contact compartment: Infectious (Untreated) compartment 
+ Stratum-specific contact rate parameters: 
+   Homosexual Men: rate=0 (no flow) 
+   Women: rate=0 (no flow) 
+   Heterosexual Men: use λ_hm parameter 
+ Flow 4: Infectious (Untreated) to Treated 
+ Type: RateFlow 
+ Source: Infectious (Untreated) compartment 
+ Target: Treated compartment 
+ Description: Initial treatment with antiretrovirals 
+ Rate parameter: αp (same for all strata) 
+ Flow 5: Infectious (Untreated) to Infectious (AIDS) 
+ Type: RateFlow 
+ Source: Infectious (Untreated) compartment 
+ Target: Infectious (AIDS) compartment 
+ Description: Progression to AIDS without treatment 
+ Rate parameter: α(1-p) (same for all strata) 
+ Flow 6: Treated to Infectious (AIDS) 
+ Type: RateFlow 
+ Source: Treated compartment 
+ Target: Infectious (AIDS) compartment 
+ Description: Treatment failure progression to AIDS 
+ Rate parameter: δ (same for all strata) 
+ BIRTH SOURCES: 
+ All reference parameters not numeric values. 
+ Birth 1: 
+ Name: Recruitment of Homosexual Men 
+ Rate parameter: Ψθ(1-γ) 
+ Target: Susceptible compartment 
+ Target stratum: Homosexual Men 
+ Birth 2: 
+ Name: Recruitment of Women 
+ Rate parameter: Ψ(1-θ) 
+ Target: Susceptible compartment 
+ Target stratum: Women 
+ Birth 3: 
+ Name: Recruitment of Heterosexual Men 
+ Rate parameter: Ψθγ 
+ Target: Susceptible compartment 
+ Target stratum: Heterosexual Men 
+ DEATH SINKS: 
+ Natural death from all compartments all strata: 
+ For Susceptible compartment: 
+   Natural Death from Susceptible (Homosexual Men) - rate parameter μ - source Susceptible - stratum Homosexual Men 
+   Natural Death from Susceptible (Women) - rate parameter μ - source Susceptible - stratum Women 
+   Natural Death from Susceptible (Heterosexual Men) - rate parameter μ - source Susceptible - stratum Heterosexual Men 
+ For Infectious Untreated compartment: 
+   Natural Death from Untreated Infected (Homosexual Men) - rate parameter μ - source Infectious Untreated - stratum Homosexual Men 
+   Natural Death from Untreated Infected (Women) - rate parameter μ - source Infectious Untreated - stratum Women 
+   Natural Death from Untreated Infected (Heterosexual Men) - rate parameter μ - source Infectious Untreated - stratum Heterosexual Men 
+ For Treated compartment: 
+   Natural Death from Treated (Homosexual Men) - rate parameter μ - source Treated - stratum Homosexual Men 
+   Natural Death from Treated (Women) - rate parameter μ - source Treated - stratum Women 
+   Natural Death from Treated (Heterosexual Men) - rate parameter μ - source Treated - stratum Heterosexual Men 
+ For Infectious AIDS compartment: 
+   Natural Death from AIDS (Homosexual Men) - rate parameter μ - source Infectious AIDS - stratum Homosexual Men 
+   Natural Death from AIDS (Women) - rate parameter μ - source Infectious AIDS - stratum Women 
+   Natural Death from AIDS (Heterosexual Men) - rate parameter μ - source Infectious AIDS - stratum Heterosexual Men 
+ AIDS-induced death from AIDS compartment only: 
+   AIDS Death (Homosexual Men) - rate parameter d - source Infectious AIDS - stratum Homosexual Men 
+   AIDS Death (Women) - rate parameter d - source Infectious AIDS - stratum Women 
+   AIDS Death (Heterosexual Men) - rate parameter d - source Infectious AIDS - stratum Heterosexual Men
+********************************************************************************
+LLM1'S RESPONSE:
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Reasoning:
+- Creating 4 base compartments each stratified by the SexualBehavior group: Susceptible, Infectious (Untreated), Treated (with ART), Infectious (living with AIDS).
+- Stratification group: SexualBehavior with values Homosexual Men, Women, Heterosexual Men.
+- Product: SexualBehaviorProduct for stratification of all compartments.
+- Initial populations are provided for each stratum in the Susceptible and Infectious (Untreated) compartments.
+- Parameters total: 25 with named Greek symbols, some as expressions.
+- Flows: 6 flows created as per user: 3 ContactFlows for infection and 3 RateFlows for progression.
+- BirthSources: 3, each referencing parametric rates for stratified recruitment.
+- DeathSinks: implemented for both natural and AIDS-induced mortality across all compartments and strata.
+-->
+
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups name="SexualBehavior">
+      <values>Homosexual Men</values>
+      <values>Women</values>
+      <values>Heterosexual Men</values>
+    </groups>
+  </products>
+  
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.12" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.24"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.28"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.26"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
+      <stratumSpecificRates stratum="Women" rate="0.0"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.25"/>
+    </outgoingFlows>
+  </compartments>
+  
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0"/>
+
+  <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0"/>
+  
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
+  
+  <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
+  <parameters name="θ" expression="0.48" description="Proportion of men in population" unit="dimensionless"/>
+  <parameters name="γ" expression="0.92" description="Proportion of heterosexual men among all men" unit="dimensionless"/>
+  <parameters name="p" expression="0.90" description="Proportion of infected receiving initial treatment" unit="dimensionless"/>
+  <parameters name="μ" expression="0.0129" description="Natural mortality rate" unit="1/year"/>
+  <parameters name="d" expression="0.3333" description="AIDS-induced mortality rate" unit="1/year"/>
+  <parameters name="δ" expression="0.018" description="AIDS development rate in treated individuals" unit="1/year"/>
+  <parameters name="α" expression="0.3333" description="Departure rate from infected compartments" unit="1/year"/>
+  <parameters name="β_h" expression="0.44" description="Probability of homosexual transmission" unit="dimensionless"/>
+  <parameters name="β_s" expression="0.02" description="Probability of heterosexual transmission" unit="dimensionless"/>
+  <parameters name="β_hw" expression="0.018" description="Probability of transmission homosexual men to women" unit="dimensionless"/>
+  <parameters name="β_hm" expression="0.25" description="Probability of transmission homosexual men to heterosexual men" unit="dimensionless"/>
+  <parameters name="c_h" expression="7" description="Sexual partners rate for homosexuals" unit="1/year"/>
+  <parameters name="c_s" expression="4" description="Sexual partners rate for heterosexuals" unit="1/year"/>
+  <parameters name="c_hw" expression="2" description="Sexual partners rate homosexual men and women" unit="1/year"/>
+  <parameters name="c_hm" expression="1" description="Sexual partners rate homosexual and heterosexual men" unit="1/year"/>
+  <parameters name="B_h" type="EXPRESSION" expression="β_h * c_h" description="Combined transmission rate homosexuals" unit="1/year"/>
+  <parameters name="B_s" type="EXPRESSION" expression="β_s * c_s" description="Combined transmission rate heterosexuals" unit="1/year"/>
+  <parameters name="B_hw" type="EXPRESSION" expression="β_hw * c_hw" description="Combined transmission rate homosexual to women" unit="1/year"/>
+  <parameters name="B_hm" type="EXPRESSION" expression="β_hm * c_hm" description="Combined transmission rate homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="Ψθ(1-γ)" type="EXPRESSION" expression="Ψ * θ * (1 - γ)" description="Recruitment rate homosexual men" unit="individuals/year"/>
+  <parameters name="Ψ(1-θ)" type="EXPRESSION" expression="Ψ * (1 - θ)" description="Recruitment rate women" unit="individuals/year"/>
+  <parameters name="Ψθγ" type="EXPRESSION" expression="Ψ * θ * γ" description="Recruitment rate heterosexual men" unit="individuals/year"/>
+  <parameters name="αp" type="EXPRESSION" expression="α * p" description="Treatment initiation rate" unit="1/year"/>
+  <parameters name="α(1-p)" type="EXPRESSION" expression="α * (1 - p)" description="AIDS progression rate untreated" unit="1/year"/>
+  <parameters name="λ_h" type="EXPRESSION" expression="B_h * (I_h / (S_h + I_h))" description="Force of infection homosexual men" unit="1/year"/>
+  <parameters name="λ_hw" type="EXPRESSION" expression="B_hw * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to women" unit="1/year"/>
+  <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
+  <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+  
+  <birthSources>
+    <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+    <birthSources name="Recruitment of Women" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
+    <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  </birthSources>
+  
+  <deathSinks>
+    <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  </deathSinks>
+</seir:SEIRModel>
+********************************************************************************
+LLM2'S RESPONSE:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Reasoning:
+- Creating 4 base compartments each stratified by the SexualBehavior group: Susceptible, Infectious (Untreated), Treated (with ART), Infectious (living with AIDS).
+- Stratification group: SexualBehavior with values Homosexual Men, Women, Heterosexual Men.
+- Product: SexualBehaviorProduct for stratification of all compartments.
+- Initial populations are provided for each stratum in the Susceptible and Infectious (Untreated) compartments.
+- Parameters total: 25 with named Greek symbols, some as expressions.
+- Flows: 6 flows created as per user: 3 ContactFlows for infection and 3 RateFlows for progression.
+- BirthSources: 3, each referencing parametric rates for stratified recruitment.
+- DeathSinks: implemented for both natural and AIDS-induced mortality across all compartments and strata.
+-->
+
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups name="SexualBehavior">
+      <values>Homosexual Men</values>
+      <values>Women</values>
+      <values>Heterosexual Men</values>
+    </groups>
+  </products>
+  
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <!-- Contact flow for infection within groups -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.24"/> <!-- λ_h -->
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.27"/> <!-- λ_w -->
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.28"/> <!-- λ_m -->
+    </outgoingFlows>
+    <!-- Cross-infection from homosexual men to women -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/> <!-- No flow -->
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.26"/> <!-- λ_hw -->
+      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/> <!-- No flow -->
+    </outgoingFlows>
+    <!-- Cross-infection from homosexual men to heterosexual men -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/> <!-- No flow -->
+      <stratumSpecificRates stratum="Women" rate="0.0"/> <!-- No flow -->
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.25"/> <!-- λ_hm -->
+    </outgoingFlows>
+  </compartments>
+  
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0"/>
+  <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0"/>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
+  
+  <!-- Parameters, including expressions, already provided in user input -->
+  <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
+  <parameters name="θ" expression="0.48" description="Proportion of men in population" unit="dimensionless"/>
+  <parameters name="γ" expression="0.92" description="Proportion of heterosexual men among all men" unit="dimensionless"/>
+  <parameters name="p" expression="0.90" description="Proportion of infected receiving initial treatment" unit="dimensionless"/>
+  <parameters name="μ" expression="0.0129" description="Natural mortality rate" unit="1/year"/>
+  <parameters name="d" expression="0.3333" description="AIDS-induced mortality rate" unit="1/year"/>
+  <parameters name="δ" expression="0.018" description="AIDS development rate in treated individuals" unit="1/year"/>
+  <parameters name="α" expression="0.3333" description="Departure rate from infected compartments" unit="1/year"/>
+  <parameters name="β_h" expression="0.44" description="Probability of homosexual transmission" unit="dimensionless"/>
+  <parameters name="β_s" expression="0.02" description="Probability of heterosexual transmission" unit="dimensionless"/>
+  <parameters name="β_hw" expression="0.018" description="Probability of transmission homosexual men to women" unit="dimensionless"/>
+  <parameters name="β_hm" expression="0.25" description="Probability of transmission homosexual men to heterosexual men" unit="dimensionless"/>
+  <parameters name="c_h" expression="7" description="Sexual partners rate for homosexuals" unit="1/year"/>
+  <parameters name="c_s" expression="4" description="Sexual partners rate for heterosexuals" unit="1/year"/>
+  <parameters name="c_hw" expression="2" description="Sexual partners rate homosexual men and women" unit="1/year"/>
+  <parameters name="c_hm" expression="1" description="Sexual partners rate homosexual and heterosexual men" unit="1/year"/>
+  <parameters name="B_h" type="EXPRESSION" expression="β_h * c_h" description="Combined transmission rate homosexuals" unit="1/year"/>
+  <parameters name="B_s" type="EXPRESSION" expression="β_s * c_s" description="Combined transmission rate heterosexuals" unit="1/year"/>
+  <parameters name="B_hw" type="EXPRESSION" expression="β_hw * c_hw" description="Combined transmission rate homosexual to women" unit="1/year"/>
+  <parameters name="B_hm" type="EXPRESSION" expression="β_hm * c_hm" description="Combined transmission rate homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="Ψθ(1-γ)" type="EXPRESSION" expression="Ψ * θ * (1 - γ)" description="Recruitment rate homosexual men" unit="individuals/year"/>
+  <parameters name="Ψ(1-θ)" type="EXPRESSION" expression="Ψ * (1 - θ)" description="Recruitment rate women" unit="individuals/year"/>
+  <parameters name="Ψθγ" type="EXPRESSION" expression="Ψ * θ * γ" description="Recruitment rate heterosexual men" unit="individuals/year"/>
+  <parameters name="αp" type="EXPRESSION" expression="α * p" description="Treatment initiation rate" unit="1/year"/>
+  <parameters name="α(1-p)" type="EXPRESSION" expression="α * (1 - p)" description="AIDS progression rate untreated" unit="1/year"/>
+  <parameters name="λ_h" type="EXPRESSION" expression="B_h * (I_h / (S_h + I_h))" description="Force of infection homosexual men" unit="1/year"/>
+  <parameters name="λ_hw" type="EXPRESSION" expression="B_hw * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to women" unit="1/year"/>
+  <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
+  <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+  
+  <birthSources>
+    <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+    <birthSources name="Recruitment of Women" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
+    <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  </birthSources>
+  
+  <deathSinks>
+    <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  </deathSinks>
+</seir:SEIRModel>
+```

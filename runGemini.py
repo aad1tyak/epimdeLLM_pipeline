@@ -3,8 +3,9 @@ import time
 from dotenv import load_dotenv
 import json
 import google.generativeai as genai
-import PIL.Image
 
+# --- Configuration ---
+BREAK_TIME = 10  # 10 seconds break between each execution
 
 # --- Load configuration files ---
 def load_json_file(filename: str) -> dict:
@@ -22,16 +23,35 @@ def load_json_file(filename: str) -> dict:
 
 # Load prompts and models
 prompts = load_json_file("prompts.json")
-LLM1_PROMPT = prompts["LLM1_PROMPT"]
-LLM2_PROMPT = prompts["LLM2_PROMPT"]
-SIMULATION_PROMPT = prompts["SIMULATION_PROMPT"]
+LLM1_PROMPT = prompts["short_LLM1_PROMPT"]
+LLM2_PROMPT = prompts["short_LLM2_PROMPT"]
+LLM3A_PROMPT = prompts["smart_LLM3A_PROMPT"]
+LLM3B_PROMPT = prompts["smart_LLM3B_PROMPT"]
+
 METAMODEL_FILENAME = "metamodel.json"
+SIMULATION_SKELETON_FILE = "simulation_skeleton.txt"
 
 models = load_json_file("models.json")
-hivModel = models["hivModel"]
-covidModel = models["covidModel"]
-simpleModel = models["simpleModel"]
-malariaModel = models["malariaModel"]
+hivModel = models["smartHIVInput"]
+covidModel = models["smartCovidInput"]
+simpleModel = models["smartSIRInput"]
+malariaModel = models["smartMalariaInput"]
+
+ode = load_json_file("ode.json")
+hiv_ode = ode["hivModel"]
+covid_ode = ode["covidModel"]
+simple_ode = ode["simpleModel"]
+malaria_ode = ode["malariaModel"]
+
+# Extracting python code from simulation_skeleton.txt file
+SIMULATION_SKELETON = ""
+try:
+    with open(SIMULATION_SKELETON_FILE, 'r', encoding='utf-8') as f:
+        SIMULATION_SKELETON = f.read()
+except FileNotFoundError:
+    print(f"Error: {SIMULATION_SKELETON_FILE} not found.")
+except Exception as e:
+    print(f"An error occurred: {e}")
 
 
 # --- Initialize Gemini API ---
@@ -44,21 +64,40 @@ except KeyError:
     print("Please set it before running the script.")
     exit(1)
 
-# Use the stable API that works
-model = genai.GenerativeModel('gemini-2.5-pro')
+# Use the Gemini model
+model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
 
-def generate_seirmodel_from_image(
-    image_path: str, 
+def call_gemini(prompt: str) -> str:
+    """
+    Call Gemini API with the given prompt and return the generated text.
+    
+    Args:
+        prompt: The input prompt
+        
+    Returns:
+        str: Generated text from the model
+    """
+    try:
+        print(f"Calling Gemini API with prompt length: {len(prompt)} characters")
+        
+        response = model.generate_content(prompt.strip())
+        output = response.text.strip()
+        
+        return output
+        
+    except Exception as e:
+        return f"ERROR: {str(e)}"
+
+
+def generate_seirmodel(
     user_input: str, 
     output_fileName: str
 ) -> str:
     """
-    Generates a SEIR model in XML format using a two-stage LLM process with multimodal input,
-    and saves the full interaction log.
-
+    Generates a SEIR model in XML format using a two-stage LLM process.
+    
     Args:
-        image_path: Path to the epidemiological model diagram image (relative to 'diagrams' folder).
         user_input: Text containing tabular data (compartments, flows, variables).
         output_fileName: The desired name for the output file (e.g., "hiv_model.txt").
 
@@ -71,11 +110,6 @@ def generate_seirmodel_from_image(
             lang_specs_json = json.load(f)
         lang_specs = json.dumps(lang_specs_json, indent=2)
         
-        # Load the image using PIL
-        img_path = os.path.join(os.path.dirname(__file__), "diagrams", image_path)
-        img = PIL.Image.open(img_path)
-
-        print(f"'{image_path}' loaded successfully.")
         print(f"'{METAMODEL_FILENAME}' loaded successfully.")
 
     except FileNotFoundError as err:
@@ -96,14 +130,16 @@ def generate_seirmodel_from_image(
         f"{separator}"
         f"METAMODEL: \n{lang_specs.strip()}\n"
         f"{separator}"
-        f"USER_INPUT: \n{user_input.strip()}"
+        f"USER_INPUT: \n{user_input.strip()}\n"
+        f"{separator}"
+        f"Generate the SEIR model in XML format based on the above information:"
     )
 
-    # Generate content with image + text (old SDK style)
-    llm1 = model.generate_content([
-        img,                   # The PIL Image object
-        llm1_input.strip()    # The text part of the prompt
-    ]).text.strip()
+    print("Generating LLM1 response...")
+    llm1 = call_gemini(llm1_input)
+    
+    if llm1.startswith("ERROR:"):
+        return llm1
     
     print("LLM1 response generated successfully.")
 
@@ -118,7 +154,12 @@ def generate_seirmodel_from_image(
         f"{separator}"
     )
 
-    llm2 = model.generate_content(llm2_input.strip()).text.strip()
+    print("Generating LLM2 response...")
+    llm2 = call_gemini(llm2_input)
+    
+    if llm2.startswith("ERROR:"):
+        return llm2
+    
     print("LLM2 response generated successfully.")
     
     # --- Format and save the output ---
@@ -128,8 +169,6 @@ def generate_seirmodel_from_image(
         f"METAMODEL:\n{lang_specs.strip()}"
         f"{separator}"
         f"User Input:\n{user_input.strip()}"
-        f"{separator}"
-        f"Image is also provided with the above textual input!"
         f"{separator}"
         f"LLM1 RESPONSE:\n{llm1}"
         f"{separator}"
@@ -164,51 +203,53 @@ def generate_seirmodel_from_image(
 
 def simulate(ode_equations: str, output_fileName: str) -> str:
     """
-    Generates a Python simulation script for an ODE model.
+    Generates a Python simulation script for an ODE model using a two-stage process.
 
     Args:
-        ode_equations: Identifier for the ODE equations (e.g., 'hiv_ode', 'covid_ode').
+        ode_equations: ODE equations 
         output_fileName: The desired name for the output Python file (e.g., "simulation.py").
 
     Returns:
         str: A success message with the output file path, or an error message.
     """
-    try:
-        # Load ODE equations from JSON file
-        ode_equations_data = load_json_file("ode.json")
-        
-        # Map identifier to actual equations
-        ode_mapping = {
-            "hiv_ode": ode_equations_data["hivModel"],
-            "covid_ode": ode_equations_data["covidModel"],
-            "simple_ode": ode_equations_data["simpleModel"]
-        }
-        
-        ode_eq = ode_mapping.get(ode_equations)
-        if ode_eq is None:
-            error_msg = f"Unknown ODE equations identifier: {ode_equations}"
-            print(error_msg)
-            return error_msg
-        
-    except Exception as e:
-        error_msg = f"Error loading ODE equations: {e}"
-        print(error_msg)
-        return error_msg
     
-    # --- Generate simulation script ---
+    # --- Stage 3A: Generate simulation script ---
     separator = "\n" + "*" * 80 + "\n"
     
-    simulation_input = (
+    simulation_stage3a = (
         f"{separator}"
-        f"PROMPT:\n{SIMULATION_PROMPT.strip()}\n"
+        f"PROMPT:\n{LLM3A_PROMPT.strip()}\n"
         f"{separator}"
-        f"ODE_EQUATIONS:\n{ode_eq.strip()}\n"
+        f"ODE_EQUATIONS:\n{ode_equations.strip()}\n"
         f"{separator}"
+        f"Simulation python skeleton file:\n{SIMULATION_SKELETON.strip()}"
     )
 
-    simulation_script_response = model.generate_content(simulation_input.strip())
-    simulation_script = simulation_script_response.text.strip()
-    print("Simulation script generated successfully.")
+    print("Generating simulation stage3a script...")
+    simulation_script_3a = call_gemini(simulation_stage3a)
+    
+    if simulation_script_3a.startswith("ERROR:"):
+        return simulation_script_3a
+    
+    print("Stage 3A simulation script generated successfully.")
+    
+    # --- Stage 3B: Refine simulation script ---
+    simulation_stage3b = (
+        f"{separator}"
+        f"PROMPT:\n{LLM3B_PROMPT.strip()}\n"
+        f"{separator}"
+        f"ODE_EQUATIONS:\n{ode_equations.strip()}\n"
+        f"{separator}"
+        f"Simulation python partially build file:\n{simulation_script_3a.strip()}"
+    )
+
+    print("Generating final simulation stage3b script...")
+    simulation_script = call_gemini(simulation_stage3b)
+    
+    if simulation_script.startswith("ERROR:"):
+        return simulation_script
+    
+    print("Stage 3B simulation script generated successfully.")
     
     # --- Save the output ---
     try:
@@ -230,48 +271,57 @@ def simulate(ode_equations: str, output_fileName: str) -> str:
 
 
 def main():
-    """Main execution function with rate limiting."""
+    """Main execution function."""
+    
+    print("\n" + "="*80)
+    print("Using Gemini API")
+    print("="*80)
     
     # Generate SEIR models
     print("\n" + "="*80)
     print("Generating HIV Model...")
     print("="*80)
-    generate_seirmodel_from_image("hivModel(paper).jpeg", hivModel, "finalHivModel.txt")
+    generate_seirmodel(hivModel, "finalHivModel.txt")
     
-    time.sleep(10)  # Rate limiting
+    time.sleep(BREAK_TIME)
 
     print("\n" + "="*80)
     print("Generating COVID Model...")
     print("="*80)
-    generate_seirmodel_from_image("covidModel(paper).png", covidModel, "finalCovidModel.txt")
-
-    time.sleep(10)  # Rate limiting
-
-    print("\n" + "="*80)
-    print("Generating Simple SIR Model...")
-    print("="*80)
-    generate_seirmodel_from_image("simpleSIRModel(paper).png", simpleModel, "finalSimpleModel.txt")
-
-    time.sleep(10)  # Rate limiting
-
-    print("\n" + "="*80)
-    print("Generating Malaria Model...")
-    print("="*80)
-    generate_seirmodel_from_image("malariaModel(paper).png", malariaModel, "finalMalariaModel.txt")
+    generate_seirmodel(covidModel, "finalCovidModel.txt")
     
-    # Uncomment to run simulations
-    # time.sleep(10)
+    time.sleep(BREAK_TIME)
+
     # print("\n" + "="*80)
-    # print("Generating HIV Simulation...")
+    # print("Generating Simple SIR Model...")
     # print("="*80)
-    # simulate("hiv_ode", "hiv_simulation.py")
+    # generate_seirmodel(simpleModel, "finalSimpleModel.txt")
+
+    # time.sleep(BREAK_TIME)
+
+    # print("\n" + "="*80)
+    # print("Generating Malaria Model...")
+    # print("="*80)
+    # generate_seirmodel(malariaModel, "finalMalariaModel.txt")
     
-    # time.sleep(10)
-    # simulate("covid_ode", "covid_simulation.py")
+    # NOTE: Only run if the ODE equations are ready in the ode.json
+    time.sleep(BREAK_TIME)
+    print("\n" + "="*80)
+    print("Generating HIV Simulation...")
+    print("="*80)
+    simulate(hiv_ode, "hiv_simulation.py")
     
-    # time.sleep(10)
-    # simulate("simple_ode", "simple_simulation.py")
+    time.sleep(BREAK_TIME)
+    print("\n" + "="*80)
+    print("Generating COVID Simulation...")
+    print("="*80)
+    simulate(covid_ode, "covid_simulation.py")
     
+    # time.sleep(BREAK_TIME)
+    # simulate(simple_ode, "simple_simulation.py")
+    # time.sleep(BREAK_TIME)
+    # simulate(malaria_ode, "malaria_simulation.py")
+
     print("\n" + "="*80)
     print("All tasks completed!")
     print("="*80)
