@@ -28,7 +28,7 @@ LLM2_PROMPT = prompts["smart_LLM2_PROMPT"]
 LLM3A_PROMPT = prompts["smart_LLM3A_PROMPT"]
 LLM3B_PROMPT = prompts["smart_LLM3B_PROMPT"]
 
-METAMODEL_FILENAME = "compartmental_metamodel.json"
+METAMODEL_FILENAME = "metamodel.json"
 SIMULATION_SKELETON_FILE = "simulation_skeleton.txt"
 
 models = load_json_file("models.json")
@@ -36,6 +36,8 @@ hivModel = models["smartHIVInput"]
 covidModel = models["smartCovidInput"]
 simpleModel = models["smartSIRInput"]
 malariaModel = models["smartMalariaInput"]
+ebolaModel = models["smartEbolaInput"]
+
 
 ode = load_json_file("ode.json")
 hiv_ode = ode["hivModel"]
@@ -286,18 +288,24 @@ def main():
     
     # Generate SEIR models
     print("\n" + "="*80)
-    print("Generating HIV Model...")
-    print("="*80)
-    generate_seirmodel(hivModel, "finalHivModel.txt")
+    # print("Generating HIV Model...")
+    # print("="*80)
+    # generate_seirmodel(hivModel, "finalHivModel.txt")
     
-    time.sleep(BREAK_TIME)
+    # time.sleep(BREAK_TIME)
 
-    print("\n" + "="*80)
-    print("Generating COVID Model...")
-    print("="*80)
-    generate_seirmodel(covidModel, "finalCovidModel.txt")
+    # print("\n" + "="*80)
+    # print("Generating COVID Model...")
+    # print("="*80)
+    # generate_seirmodel(covidModel, "finalCovidModel.txt")
     
-    time.sleep(BREAK_TIME)
+    # time.sleep(BREAK_TIME)
+
+    
+    print("\n" + "="*80)
+    print("Generating Ebola Model...")
+    print("="*80)
+    generate_seirmodel(ebolaModel, "finalEbolaModel.txt")
 
     # print("\n" + "="*80)
     # print("Generating Simple SIR Model...")
@@ -312,17 +320,17 @@ def main():
     # generate_seirmodel(malariaModel, "finalMalariaModel.txt")
     
     # NOTE: Only run if the ODE equations are ready in the ode.json
-    time.sleep(BREAK_TIME)
-    print("\n" + "="*80)
-    print("Generating HIV Simulation...")
-    print("="*80)
-    simulate(hiv_ode, "hiv_simulation.py")
+    # time.sleep(BREAK_TIME)
+    # print("\n" + "="*80)
+    # print("Generating HIV Simulation...")
+    # print("="*80)
+    # simulate(hiv_ode, "hiv_simulation.py")
     
-    time.sleep(BREAK_TIME)
-    print("\n" + "="*80)
-    print("Generating COVID Simulation...")
-    print("="*80)
-    simulate(covid_ode, "covid_simulation.py")
+    # time.sleep(BREAK_TIME)
+    # print("\n" + "="*80)
+    # print("Generating COVID Simulation...")
+    # print("="*80)
+    # simulate(covid_ode, "covid_simulation.py")
     
     # time.sleep(BREAK_TIME)
     # simulate(simple_ode, "simple_simulation.py")

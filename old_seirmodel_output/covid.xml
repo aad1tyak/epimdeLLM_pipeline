@@ -1,0 +1,158 @@
+<!--
+Reasoning:
+- All parameter values are prioritized as named parameters with Greek symbols.
+- Placeholders for numeric rates in flows are not applicable since this is a parametric model.
+- Stratification is applied for age groups 0-17, 18-64, and 65+ as specified.
+- All flows utilize specified parameter names; hence, no numeric placeholders exist to replace.
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <products name="AgeStratification" description="Age-based compartment stratification">
+    <groups name="AgeGroup">
+      <values>0-17</values>
+      <values>18-64</values>
+      <values>65+</values>
+    </groups>
+  </products>
+  <parameters name="β" expression="0.00001" description="Base transmission rate" unit="1/time"/>
+  <parameters name="q" expression="0.0" description="Quarantine rate for exposed" unit="1/time"/>
+  <parameters name="σ" expression="0.4" description="Incubation rate (progression to infectious)" unit="1/time"/>
+  <parameters name="σ_q" expression="0.4" description="Incubation rate for quarantined" unit="1/time"/>
+  <parameters name="γ_p" expression="1.0" description="Rate of symptom onset" unit="1/time"/>
+  <parameters name="p_severe" expression="0.15" description="Probability of developing severe symptoms" unit="dimensionless"/>
+  <parameters name="γ_m" expression="0.167" description="Recovery rate for mild cases" unit="1/time"/>
+  <parameters name="α_m" expression="0.5" description="Isolation rate for mild cases" unit="1/time"/>
+  <parameters name="γ_s" expression="0.167" description="Hospitalization rate for severe cases" unit="1/time"/>
+  <parameters name="α_iso" expression="0.0" description="Rate of movement to isolated state" unit="1/time"/>
+  <parameters name="γ_iso" expression="0.167" description="Recovery rate from isolation" unit="1/time"/>
+  <parameters name="γ_h_r" expression="0.74" description="Recovery rate from pre-ICU hospital" unit="1/time"/>
+  <parameters name="γ_h_icu" expression="0.26" description="Progression rate to ICU" unit="1/time"/>
+  <parameters name="γ_icu_post" expression="0.6" description="Improvement rate ICU to post-ICU" unit="1/time"/>
+  <parameters name="μ_icu" expression="0.4" description="Mortality rate in ICU" unit="1/time"/>
+  <parameters name="γ_post" expression="0.048" description="Recovery rate post-ICU" unit="1/time"/>
+  <parameters name="N" expression="14800000" description="Total population" unit="individuals"/>
+  <parameters name="birth_rate" expression="3.0E-5" description="Population birth rate" unit="1/time"/>
+  <parameters name="(1-q)" type="EXPRESSION" expression="(1 - q)" description="Non-quarantine rate" unit="dimensionless"/>
+  <parameters name="(1-p_severe)" type="EXPRESSION" expression="(1 - p_severe)" description="Probability of mild symptoms" unit="dimensionless"/>
+  <parameters name="(1-q)*σ" type="EXPRESSION" expression="(1 - q) * σ" description="Non-quarantine incubation rate" unit="1/time"/>
+  <parameters name="γ_p*(1-p_severe)" type="EXPRESSION" expression="γ_p * (1 - p_severe)" description="Mild symptom development rate" unit="1/time"/>
+  <parameters name="γ_p*p_severe" type="EXPRESSION" expression="γ_p * p_severe" description="Severe symptom development rate" unit="1/time"/>
+  <compartments PrimaryName="Susceptible" product="//@products.0" population="4900000" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.0" contactCompartment="//@compartments.3" target="//@compartments.1" description="Infection through contact with infectious individuals">
+      <stratumSpecificRates stratum="0-17" multiplier="0.7"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="1.3"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Susceptible" product="//@products.0" population="8800000" SecondaryName="18-64"/>
+  <compartments PrimaryName="Susceptible" product="//@products.0" population="1000000" SecondaryName="65+"/>
+  <compartments PrimaryName="Exposed" product="//@products.0" population="1667" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.1" target="//@compartments.2" description="Quarantine of exposed individuals"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.20" target="//@compartments.3" description="Progression to presymptomatic infectious">
+      <stratumSpecificRates stratum="0-17" multiplier="1.25"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="0.75"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Exposed" product="//@products.0" population="3000" SecondaryName="18-64"/>
+  <compartments PrimaryName="Exposed" product="//@products.0" population="333" SecondaryName="65+"/>
+  <compartments PrimaryName="Exposed, quarantined" product="//@products.0" population="333" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.3" target="//@compartments.4" description="Progression of quarantined to isolated presymptomatic">
+      <stratumSpecificRates stratum="0-17" multiplier="1.25"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="0.75"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Exposed, quarantined" product="//@products.0" population="600" SecondaryName="18-64"/>
+  <compartments PrimaryName="Exposed, quarantined" product="//@products.0" population="67" SecondaryName="65+"/>
+  <compartments PrimaryName="Infectious, presymptomatic" product="//@products.0" population="1000" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.23" target="//@compartments.6" description="Development of mild to moderate symptoms">
+      <stratumSpecificRates stratum="0-17" multiplier="1.15"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="0.76"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.24" target="//@compartments.8" description="Development of severe symptoms">
+      <stratumSpecificRates stratum="0-17" multiplier="0.07"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="2.33"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Infectious, presymptomatic" product="//@products.0" population="1800" SecondaryName="18-64"/>
+  <compartments PrimaryName="Infectious, presymptomatic" product="//@products.0" population="200" SecondaryName="65+"/>
+  <compartments PrimaryName="Infectious, presymptomatic isolated" product="//@products.0" population="333" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.23" target="//@compartments.7" description="Development of mild symptoms in isolated">
+      <stratumSpecificRates stratum="0-17" multiplier="1.15"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="0.76"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.24" target="//@compartments.9" description="Development of severe symptoms in isolated">
+      <stratumSpecificRates stratum="0-17" multiplier="0.07"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.0"/>
+      <stratumSpecificRates stratum="65+" multiplier="2.33"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="Infectious, presymptomatic isolated" product="//@products.0" population="600" SecondaryName="18-64"/>
+  <compartments PrimaryName="Infectious, presymptomatic isolated" product="//@products.0" population="67" SecondaryName="65+"/>
+  <compartments PrimaryName="Infectious, mild to moderate" product="//@products.0" population="2667" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.7" target="//@compartments.10" description="Detection and isolation of mild cases"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.6" target="//@compartments.13" description="Recovery from mild symptoms without isolation"/>
+  </compartments>
+  <compartments PrimaryName="Infectious, mild to moderate" product="//@products.0" population="4800" SecondaryName="18-64"/>
+  <compartments PrimaryName="Infectious, mild to moderate" product="//@products.0" population="533" SecondaryName="65+"/>
+  <compartments PrimaryName="Infectious, mild to moderate isolated" product="//@products.0" population="1333" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.9" target="//@compartments.10" description="Transfer to central isolation facility"/>
+  </compartments>
+  <compartments PrimaryName="Infectious, mild to moderate isolated" product="//@products.0" population="2400" SecondaryName="18-64"/>
+  <compartments PrimaryName="Infectious, mild to moderate isolated" product="//@products.0" population="267" SecondaryName="65+"/>
+  <compartments PrimaryName="Infectious, severe" product="//@products.0" population="667" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.8" target="//@compartments.11" description="Hospitalization of severe cases"/>
+  </compartments>
+  <compartments PrimaryName="Infectious, severe" product="//@products.0" population="1200" SecondaryName="18-64"/>
+  <compartments PrimaryName="Infectious, severe" product="//@products.0" population="133" SecondaryName="65+"/>
+  <compartments PrimaryName="Infectious, severe isolated" product="//@products.0" population="267" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.8" target="//@compartments.11" description="Hospitalization of isolated severe cases"/>
+  </compartments>
+  <compartments PrimaryName="Infectious, severe isolated" product="//@products.0" population="480" SecondaryName="18-64"/>
+  <compartments PrimaryName="Infectious, severe isolated" product="//@products.0" population="53" SecondaryName="65+"/>
+  <compartments PrimaryName="Isolated" product="//@products.0" population="2000" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.10" target="//@compartments.13" description="Recovery from isolation"/>
+  </compartments>
+  <compartments PrimaryName="Isolated" product="//@products.0" population="3600" SecondaryName="18-64"/>
+  <compartments PrimaryName="Isolated" product="//@products.0" population="400" SecondaryName="65+"/>
+  <compartments PrimaryName="Admitted to hospital" product="//@products.0" population="500" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.11" target="//@compartments.13" description="Recovery from hospital (pre-ICU)">
+      <stratumSpecificRates stratum="0-17" multiplier="1.22"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.08"/>
+      <stratumSpecificRates stratum="65+" multiplier="0.81"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.12" target="//@compartments.12" description="Admission to ICU"/>
+  </compartments>
+  <compartments PrimaryName="Admitted to hospital" product="//@products.0" population="900" SecondaryName="18-64"/>
+  <compartments PrimaryName="Admitted to hospital" product="//@products.0" population="100" SecondaryName="65+"/>
+  <compartments PrimaryName="ICU" product="//@products.0" population="133" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.13" target="//@compartments.14" description="Improvement and transfer to post-ICU care">
+      <stratumSpecificRates stratum="0-17" multiplier="1.42"/>
+      <stratumSpecificRates stratum="18-64" multiplier="1.17"/>
+      <stratumSpecificRates stratum="65+" multiplier="0.75"/>
+    </outgoingFlows>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.14" target="//@compartments.15" description="Death from COVID-19 in ICU">
+      <stratumSpecificRates stratum="0-17" multiplier="0.0"/>
+      <stratumSpecificRates stratum="18-64" multiplier="0.5"/>
+      <stratumSpecificRates stratum="65+" multiplier="1.45"/>
+    </outgoingFlows>
+  </compartments>
+  <compartments PrimaryName="ICU" product="//@products.0" population="240" SecondaryName="18-64"/>
+  <compartments PrimaryName="ICU" product="//@products.0" population="27" SecondaryName="65+"/>
+  <compartments PrimaryName="Admitted to hospital, post-ICU" product="//@products.0" population="67" SecondaryName="0-17">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.15" target="//@compartments.13" description="Recovery from post-ICU hospital care"/>
+  </compartments>
+  <compartments PrimaryName="Admitted to hospital, post-ICU" product="//@products.0" population="120" SecondaryName="18-64"/>
+  <compartments PrimaryName="Admitted to hospital, post-ICU" product="//@products.0" population="13" SecondaryName="65+"/>
+  <compartments PrimaryName="Recovered" product="//@products.0" population="16667" SecondaryName="0-17"/>
+  <compartments PrimaryName="Recovered" product="//@products.0" population="30000" SecondaryName="18-64"/>
+  <compartments PrimaryName="Recovered" product="//@products.0" population="3333" SecondaryName="65+"/>
+  <compartments PrimaryName="COVID Deaths" product="//@products.0" population="33" SecondaryName="0-17"/>
+  <compartments PrimaryName="COVID Deaths" product="//@products.0" population="60" SecondaryName="18-64"/>
+  <compartments PrimaryName="COVID Deaths" product="//@products.0" population="7" SecondaryName="65+"/>
+  <birthSources name="Population Birth" rateParameter="//@parameters.17" targetCompartment="//@compartments.0" targetStratum="0-17"/>
+</seir:SEIRModel>

@@ -865,47 +865,17 @@ HIV/AIDS MODEL WITH SEXUAL BEHAVIOR STRATIFICATION
  AIDS Death (Heterosexual Men) - rate parameter d - source Infectious AIDS - stratum Heterosexual Men
 ********************************************************************************
 LLM1 RESPONSE:
+```xml
 <!--
-REASONING:
-I will generate a parametric XML model for HIV/AIDS based on the user's specifications.
-
-1.  **Model Structure:**
-    -   Parameters: 31 parameters will be created in the exact order specified, including 16 CONSTANT and 15 EXPRESSION types. Names will use Unicode for Greek letters and symbols.
-    -   Groups: 1 group named "SexualBehavior" will be created with 3 values: "Homosexual Men", "Women", "Heterosexual Men".
-    -   Products: 1 product named "SexualBehaviorProduct" will be created, referencing the "SexualBehavior" group.
-    -   Compartments: 4 compartments will be created: "Susceptible", "Infectious" (Untreated), "Treated" (with ART), and "Infectious" (living with AIDS).
-    -   Stratification: All 4 compartments will be stratified by referencing the "SexualBehaviorProduct" (product="//@products.0").
-
-2.  **Compartment and Parameter Indexing (0-based):**
-    -   Compartment 0: Susceptible
-    -   Compartment 1: Infectious, Untreated
-    -   Compartment 2: Treated, with ART
-    -   Compartment 3: Infectious, living with AIDS
-    -   Parameter indices will range from 0 (Ψ) to 30. Key rate parameters for flows are: μ (4), d (5), δ (6), αp (23), α(1-p) (24), λ_h (25), λ_hw (26), λ_hm (27), λ_m (28), λ_w (29).
-    -   Recruitment parameters are: Ψθ(1-γ) (20), Ψ(1-θ) (21), Ψθγ (22).
-
-3.  **Flow Mapping:**
-    -   Three separate `ContactFlow` elements will be created within the Susceptible compartment (index 0), all targeting the Infectious, Untreated compartment (index 1). Each flow will represent a different transmission pathway.
-    -   Flow 1 (Within-group): A `ContactFlow` with `stratumSpecificRates` for "Homosexual Men" (param ref 25), "Women" (param ref 28), and "Heterosexual Men" (param ref 29).
-    -   Flow 2 (H to W): A `ContactFlow` with `stratumSpecificRates` where only the "Women" stratum has a rate (param ref 26). The other two strata will have a numeric rate of 0.0.
-    -   Flow 3 (H to HM): A `ContactFlow` with `stratumSpecificRates` where only the "Heterosexual Men" stratum has a rate (param ref 27). The other two strata will have a numeric rate of 0.0.
-    -   The `contactCompartment` for all three infection flows will correctly reference the Infectious, Untreated compartment (index 1).
-    -   The remaining three flows are simple `RateFlow`s with a single `rateParameter` applied to all strata:
-        -   Infectious (Untreated) -> Treated: rateParameter ref 23 (αp).
-        -   Infectious (Untreated) -> Infectious (AIDS): rateParameter ref 24 (α(1-p)).
-        -   Treated -> Infectious (AIDS): rateParameter ref 6 (δ).
-
-4.  **Population Dynamics:**
-    -   Births: Three `birthSources` elements will be created, each targeting the Susceptible compartment (index 0) with a specific stratum ("Homosexual Men", "Women", "Heterosexual Men") and a corresponding rate parameter (refs 20, 21, 22).
-    -   Deaths:
-        -   12 `deathSinks` will be generated for natural mortality, covering all 4 compartments and all 3 strata, all referencing the `μ` parameter (index 4).
-        -   3 `deathSinks` will be generated for AIDS-induced mortality, covering only the Infectious (AIDS) compartment for all 3 strata, referencing the `d` parameter (index 5).
-
-5.  **Compliance:**
-    -   The output will be pure, well-formed XML, adhering strictly to the v3 metamodel.
-    -   As this is a parametric model, all numeric rate attributes (`rate`, `contactRate`) will be set to `0.0`, and `rateParameter`/`contactRateParameter` will be used instead.
-    -   All references will use the specified `//@...` format with 0-based indexing.
+Reasoning:
+- There are 4 compartments, each stratified by 3 categories of sexual behavior (total 12 compartment instances).
+- 18 parameters are defined, including: 9 constant, 1 variable, and 8 expression-based parameters.
+- 1 group and 1 product for stratification: SexualBehavior and SexualBehaviorProduct.
+- Flows consist of 3 contact flows with stratum-specific rates and 3 rate flows.
+- Birth sources include recruitment into the susceptible compartment for each stratum.
+- Death sinks account for natural death from all compartments and AIDS-induced death from the AIDS compartment.
 -->
+
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
   <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
@@ -938,56 +908,67 @@ I will generate a parametric XML model for HIV/AIDS based on the user's specific
   <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
   <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
   <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+
   <groups name="SexualBehavior">
     <values>Homosexual Men</values>
     <values>Women</values>
     <values>Heterosexual Men</values>
   </groups>
-  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior" groups="//@groups.0"/>
-  <compartments PrimaryName="Susceptible" population="363613" product="//@products.0">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
-      <stratumSpecificRates stratum="Homosexual Men" rate="0.0" rateParameter="//@parameters.25"/>
-      <stratumSpecificRates stratum="Women" rate="0.0" rateParameter="//@parameters.28"/>
-      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0" rateParameter="//@parameters.29"/>
+
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups groups="//@groups.0"/>
+  </products>
+
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.16" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.29"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.30"/>
     </outgoingFlows>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.17" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
       <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
-      <stratumSpecificRates stratum="Women" rate="0.0" rateParameter="//@parameters.26"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.25"/>
       <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/>
     </outgoingFlows>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.18" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
       <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
       <stratumSpecificRates stratum="Women" rate="0.0"/>
-      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.26"/>
     </outgoingFlows>
   </compartments>
-  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="114" product="//@products.0">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.23" target="//@compartments.2" description="Initial treatment with antiretrovirals"/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.24" target="//@compartments.3" description="Progression to AIDS without treatment"/>
+
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.20" target="//@compartments.2" description="Initial treatment with antiretrovirals"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.21" target="//@compartments.3" description="Progression to AIDS without treatment"/>
   </compartments>
+
   <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.6" target="//@compartments.3" description="Treatment failure progression to AIDS"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.6" target="//@compartments.3" description="Treatment failure progression to AIDS"/>
   </compartments>
+
   <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
-  <birthSources name="Recruitment of Homosexual Men" rate="0.0" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
-  <birthSources name="Recruitment of Women" rate="0.0" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
-  <birthSources name="Recruitment of Heterosexual Men" rate="0.0" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Susceptible (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Untreated Infected (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Treated (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Treated (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Treated (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from AIDS (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from AIDS (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="AIDS Death (Homosexual Men)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
-  <deathSinks name="AIDS Death (Women)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
-  <deathSinks name="AIDS Death (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+
+  <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.23" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+  <birthSources name="Recruitment of Women" rateParameter="//@parameters.24" targetCompartment="//@compartments.0" targetStratum="Women"/>
+  <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+
+  <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
 </seir:SEIRModel>
+```
 ********************************************************************************
 
 ********************************************************************************
@@ -1176,47 +1157,17 @@ HIV/AIDS MODEL WITH SEXUAL BEHAVIOR STRATIFICATION
  AIDS Death (Heterosexual Men) - rate parameter d - source Infectious AIDS - stratum Heterosexual Men
 ********************************************************************************
 LLM1'S RESPONSE:
+```xml
 <!--
-REASONING:
-I will generate a parametric XML model for HIV/AIDS based on the user's specifications.
-
-1.  **Model Structure:**
-    -   Parameters: 31 parameters will be created in the exact order specified, including 16 CONSTANT and 15 EXPRESSION types. Names will use Unicode for Greek letters and symbols.
-    -   Groups: 1 group named "SexualBehavior" will be created with 3 values: "Homosexual Men", "Women", "Heterosexual Men".
-    -   Products: 1 product named "SexualBehaviorProduct" will be created, referencing the "SexualBehavior" group.
-    -   Compartments: 4 compartments will be created: "Susceptible", "Infectious" (Untreated), "Treated" (with ART), and "Infectious" (living with AIDS).
-    -   Stratification: All 4 compartments will be stratified by referencing the "SexualBehaviorProduct" (product="//@products.0").
-
-2.  **Compartment and Parameter Indexing (0-based):**
-    -   Compartment 0: Susceptible
-    -   Compartment 1: Infectious, Untreated
-    -   Compartment 2: Treated, with ART
-    -   Compartment 3: Infectious, living with AIDS
-    -   Parameter indices will range from 0 (Ψ) to 30. Key rate parameters for flows are: μ (4), d (5), δ (6), αp (23), α(1-p) (24), λ_h (25), λ_hw (26), λ_hm (27), λ_m (28), λ_w (29).
-    -   Recruitment parameters are: Ψθ(1-γ) (20), Ψ(1-θ) (21), Ψθγ (22).
-
-3.  **Flow Mapping:**
-    -   Three separate `ContactFlow` elements will be created within the Susceptible compartment (index 0), all targeting the Infectious, Untreated compartment (index 1). Each flow will represent a different transmission pathway.
-    -   Flow 1 (Within-group): A `ContactFlow` with `stratumSpecificRates` for "Homosexual Men" (param ref 25), "Women" (param ref 28), and "Heterosexual Men" (param ref 29).
-    -   Flow 2 (H to W): A `ContactFlow` with `stratumSpecificRates` where only the "Women" stratum has a rate (param ref 26). The other two strata will have a numeric rate of 0.0.
-    -   Flow 3 (H to HM): A `ContactFlow` with `stratumSpecificRates` where only the "Heterosexual Men" stratum has a rate (param ref 27). The other two strata will have a numeric rate of 0.0.
-    -   The `contactCompartment` for all three infection flows will correctly reference the Infectious, Untreated compartment (index 1).
-    -   The remaining three flows are simple `RateFlow`s with a single `rateParameter` applied to all strata:
-        -   Infectious (Untreated) -> Treated: rateParameter ref 23 (αp).
-        -   Infectious (Untreated) -> Infectious (AIDS): rateParameter ref 24 (α(1-p)).
-        -   Treated -> Infectious (AIDS): rateParameter ref 6 (δ).
-
-4.  **Population Dynamics:**
-    -   Births: Three `birthSources` elements will be created, each targeting the Susceptible compartment (index 0) with a specific stratum ("Homosexual Men", "Women", "Heterosexual Men") and a corresponding rate parameter (refs 20, 21, 22).
-    -   Deaths:
-        -   12 `deathSinks` will be generated for natural mortality, covering all 4 compartments and all 3 strata, all referencing the `μ` parameter (index 4).
-        -   3 `deathSinks` will be generated for AIDS-induced mortality, covering only the Infectious (AIDS) compartment for all 3 strata, referencing the `d` parameter (index 5).
-
-5.  **Compliance:**
-    -   The output will be pure, well-formed XML, adhering strictly to the v3 metamodel.
-    -   As this is a parametric model, all numeric rate attributes (`rate`, `contactRate`) will be set to `0.0`, and `rateParameter`/`contactRateParameter` will be used instead.
-    -   All references will use the specified `//@...` format with 0-based indexing.
+Reasoning:
+- There are 4 compartments, each stratified by 3 categories of sexual behavior (total 12 compartment instances).
+- 18 parameters are defined, including: 9 constant, 1 variable, and 8 expression-based parameters.
+- 1 group and 1 product for stratification: SexualBehavior and SexualBehaviorProduct.
+- Flows consist of 3 contact flows with stratum-specific rates and 3 rate flows.
+- Birth sources include recruitment into the susceptible compartment for each stratum.
+- Death sinks account for natural death from all compartments and AIDS-induced death from the AIDS compartment.
 -->
+
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
   <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
@@ -1249,61 +1200,82 @@ I will generate a parametric XML model for HIV/AIDS based on the user's specific
   <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
   <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
   <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+
   <groups name="SexualBehavior">
     <values>Homosexual Men</values>
     <values>Women</values>
     <values>Heterosexual Men</values>
   </groups>
-  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior" groups="//@groups.0"/>
-  <compartments PrimaryName="Susceptible" population="363613" product="//@products.0">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
-      <stratumSpecificRates stratum="Homosexual Men" rate="0.0" rateParameter="//@parameters.25"/>
-      <stratumSpecificRates stratum="Women" rate="0.0" rateParameter="//@parameters.28"/>
-      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0" rateParameter="//@parameters.29"/>
+
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups groups="//@groups.0"/>
+  </products>
+
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.16" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.29"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.30"/>
     </outgoingFlows>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.17" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
       <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
-      <stratumSpecificRates stratum="Women" rate="0.0" rateParameter="//@parameters.26"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.25"/>
       <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/>
     </outgoingFlows>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.18" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
       <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
       <stratumSpecificRates stratum="Women" rate="0.0"/>
-      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.26"/>
     </outgoingFlows>
   </compartments>
-  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="114" product="//@products.0">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.23" target="//@compartments.2" description="Initial treatment with antiretrovirals"/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.24" target="//@compartments.3" description="Progression to AIDS without treatment"/>
+
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.20" target="//@compartments.2" description="Initial treatment with antiretrovirals"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.21" target="//@compartments.3" description="Progression to AIDS without treatment"/>
   </compartments>
+
   <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.6" target="//@compartments.3" description="Treatment failure progression to AIDS"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.6" target="//@compartments.3" description="Treatment failure progression to AIDS"/>
   </compartments>
+
   <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
-  <birthSources name="Recruitment of Homosexual Men" rate="0.0" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
-  <birthSources name="Recruitment of Women" rate="0.0" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
-  <birthSources name="Recruitment of Heterosexual Men" rate="0.0" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Susceptible (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Untreated Infected (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Treated (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Treated (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Treated (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from AIDS (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from AIDS (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="AIDS Death (Homosexual Men)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
-  <deathSinks name="AIDS Death (Women)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
-  <deathSinks name="AIDS Death (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+
+  <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.23" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+  <birthSources name="Recruitment of Women" rateParameter="//@parameters.24" targetCompartment="//@compartments.0" targetStratum="Women"/>
+  <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+
+  <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
 </seir:SEIRModel>
+```
 ********************************************************************************
 LLM2'S RESPONSE:
+```xml
+<!--
+Reasoning:
+- There are 4 compartments, each stratified by 3 categories of sexual behavior (total 12 compartment instances).
+- 18 parameters are defined, including: 9 constant, 1 variable, and 8 expression-based parameters.
+- 1 group and 1 product for stratification: SexualBehavior and SexualBehaviorProduct.
+- Flows consist of 3 contact flows with stratum-specific rates and 3 rate flows.
+- Birth sources include recruitment into the susceptible compartment for each stratum.
+- Death sinks account for natural death from all compartments and AIDS-induced death from the AIDS compartment.
+-->
+
 <?xml version="1.0" encoding="UTF-8"?>
 <seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
-  <!-- REASONING: The user has specified a PARAMETRIC model type. According to the instructions, for parametric models, the XML is considered complete and no modifications are needed. The provided XML file correctly uses parameter references (e.g., rateParameter="//@parameters.4") instead of numeric placeholders. Therefore, the file is returned unchanged as it is already correctly populated. -->
   <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
   <parameters name="θ" expression="0.48" description="Proportion of men in population" unit="dimensionless"/>
   <parameters name="γ" expression="0.92" description="Proportion of heterosexual men among all men" unit="dimensionless"/>
@@ -1334,53 +1306,64 @@ LLM2'S RESPONSE:
   <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
   <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
   <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+
   <groups name="SexualBehavior">
     <values>Homosexual Men</values>
     <values>Women</values>
     <values>Heterosexual Men</values>
   </groups>
-  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior" groups="//@groups.0"/>
-  <compartments PrimaryName="Susceptible" population="363613" product="//@products.0">
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
-      <stratumSpecificRates stratum="Homosexual Men" rate="0.0" rateParameter="//@parameters.25"/>
-      <stratumSpecificRates stratum="Women" rate="0.0" rateParameter="//@parameters.28"/>
-      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0" rateParameter="//@parameters.29"/>
+
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups groups="//@groups.0"/>
+  </products>
+
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.16" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.29"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.30"/>
     </outgoingFlows>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.17" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
       <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
-      <stratumSpecificRates stratum="Women" rate="0.0" rateParameter="//@parameters.26"/>
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.25"/>
       <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/>
     </outgoingFlows>
-    <outgoingFlows xsi:type="seir:ContactFlow" contactRate="0.0" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+    <outgoingFlows xsi:type="seir:ContactFlow" contactRateParameter="//@parameters.18" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
       <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/>
       <stratumSpecificRates stratum="Women" rate="0.0"/>
-      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0" rateParameter="//@parameters.27"/>
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.26"/>
     </outgoingFlows>
   </compartments>
-  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="114" product="//@products.0">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.23" target="//@compartments.2" description="Initial treatment with antiretrovirals"/>
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.24" target="//@compartments.3" description="Progression to AIDS without treatment"/>
+
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0">
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.20" target="//@compartments.2" description="Initial treatment with antiretrovirals"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.21" target="//@compartments.3" description="Progression to AIDS without treatment"/>
   </compartments>
+
   <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0">
-    <outgoingFlows xsi:type="seir:RateFlow" rate="0.0" rateParameter="//@parameters.6" target="//@compartments.3" description="Treatment failure progression to AIDS"/>
+    <outgoingFlows xsi:type="seir:RateFlow" rateParameter="//@parameters.6" target="//@compartments.3" description="Treatment failure progression to AIDS"/>
   </compartments>
+
   <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
-  <birthSources name="Recruitment of Homosexual Men" rate="0.0" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
-  <birthSources name="Recruitment of Women" rate="0.0" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
-  <birthSources name="Recruitment of Heterosexual Men" rate="0.0" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Susceptible (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Untreated Infected (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from Treated (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from Treated (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from Treated (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="Natural Death from AIDS (Homosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
-  <deathSinks name="Natural Death from AIDS (Women)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
-  <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
-  <deathSinks name="AIDS Death (Homosexual Men)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
-  <deathSinks name="AIDS Death (Women)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
-  <deathSinks name="AIDS Death (Heterosexual Men)" rate="0.0" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+
+  <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.23" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+  <birthSources name="Recruitment of Women" rateParameter="//@parameters.24" targetCompartment="//@compartments.0" targetStratum="Women"/>
+  <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+
+  <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+  <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+  <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
 </seir:SEIRModel>
+```

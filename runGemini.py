@@ -23,8 +23,8 @@ def load_json_file(filename: str) -> dict:
 
 # Load prompts and models
 prompts = load_json_file("prompts.json")
-LLM1_PROMPT = prompts["short_LLM1_PROMPT"]
-LLM2_PROMPT = prompts["short_LLM2_PROMPT"]
+LLM1_PROMPT = prompts["smart_LLM1_PROMPT"]
+LLM2_PROMPT = prompts["smart_LLM2_PROMPT"]
 LLM3A_PROMPT = prompts["smart_LLM3A_PROMPT"]
 LLM3B_PROMPT = prompts["smart_LLM3B_PROMPT"]
 
@@ -36,6 +36,7 @@ hivModel = models["smartHIVInput"]
 covidModel = models["smartCovidInput"]
 simpleModel = models["smartSIRInput"]
 malariaModel = models["smartMalariaInput"]
+ebolaModel = models["smartEbolaInput"]
 
 ode = load_json_file("ode.json")
 hiv_ode = ode["hivModel"]
@@ -65,7 +66,7 @@ except KeyError:
     exit(1)
 
 # Use the Gemini model
-model = genai.GenerativeModel('gemini-2.0-flash-exp')
+model = genai.GenerativeModel('gemini-2.5-pro')
 
 
 def call_gemini(prompt: str) -> str:
@@ -278,19 +279,24 @@ def main():
     print("="*80)
     
     # Generate SEIR models
-    print("\n" + "="*80)
-    print("Generating HIV Model...")
-    print("="*80)
-    generate_seirmodel(hivModel, "finalHivModel.txt")
+    # print("\n" + "="*80)
+    # print("Generating HIV Model...")
+    # print("="*80)
+    # generate_seirmodel(hivModel, "finalHivModel.txt")
     
-    time.sleep(BREAK_TIME)
+    # time.sleep(BREAK_TIME)
+
+    # print("\n" + "="*80)
+    # print("Generating COVID Model...")
+    # print("="*80)
+    # generate_seirmodel(covidModel, "finalCovidModel.txt")
 
     print("\n" + "="*80)
-    print("Generating COVID Model...")
+    print("Generating Ebola Model...")
     print("="*80)
-    generate_seirmodel(covidModel, "finalCovidModel.txt")
+    generate_seirmodel(ebolaModel, "finalEbolaModel.txt")
     
-    time.sleep(BREAK_TIME)
+    # time.sleep(BREAK_TIME)
 
     # print("\n" + "="*80)
     # print("Generating Simple SIR Model...")
@@ -305,17 +311,17 @@ def main():
     # generate_seirmodel(malariaModel, "finalMalariaModel.txt")
     
     # NOTE: Only run if the ODE equations are ready in the ode.json
-    time.sleep(BREAK_TIME)
-    print("\n" + "="*80)
-    print("Generating HIV Simulation...")
-    print("="*80)
-    simulate(hiv_ode, "hiv_simulation.py")
+    # time.sleep(BREAK_TIME)
+    # print("\n" + "="*80)
+    # print("Generating HIV Simulation...")
+    # print("="*80)
+    # simulate(hiv_ode, "hiv_simulation.py")
     
-    time.sleep(BREAK_TIME)
-    print("\n" + "="*80)
-    print("Generating COVID Simulation...")
-    print("="*80)
-    simulate(covid_ode, "covid_simulation.py")
+    # time.sleep(BREAK_TIME)
+    # print("\n" + "="*80)
+    # print("Generating COVID Simulation...")
+    # print("="*80)
+    # simulate(covid_ode, "covid_simulation.py")
     
     # time.sleep(BREAK_TIME)
     # simulate(simple_ode, "simple_simulation.py")

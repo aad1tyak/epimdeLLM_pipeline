@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Reasoning:
+- Creating 4 base compartments each stratified by the SexualBehavior group: Susceptible, Infectious (Untreated), Treated (with ART), Infectious (living with AIDS).
+- Stratification group: SexualBehavior with values Homosexual Men, Women, Heterosexual Men.
+- Product: SexualBehaviorProduct for stratification of all compartments.
+- Initial populations are provided for each stratum in the Susceptible and Infectious (Untreated) compartments.
+- Parameters total: 25 with named Greek symbols, some as expressions.
+- Flows: 6 flows created as per user: 3 ContactFlows for infection and 3 RateFlows for progression.
+- BirthSources: 3, each referencing parametric rates for stratified recruitment.
+- DeathSinks: implemented for both natural and AIDS-induced mortality across all compartments and strata.
+-->
+
+<seir:SEIRModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:seir="http://example.com/seirmodel">
+  <products name="SexualBehaviorProduct" description="Stratification by sexual behavior">
+    <groups name="SexualBehavior">
+      <values>Homosexual Men</values>
+      <values>Women</values>
+      <values>Heterosexual Men</values>
+    </groups>
+  </products>
+  
+  <compartments PrimaryName="Susceptible" population="2446" product="//@products.0">
+    <!-- Contact flow for infection within groups -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactCompartment="//@compartments.1" target="//@compartments.1" description="Infection through sexual contact">
+      <stratumSpecificRates stratum="Homosexual Men" rateParameter="//@parameters.24"/> <!-- λ_h -->
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.27"/> <!-- λ_w -->
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.28"/> <!-- λ_m -->
+    </outgoingFlows>
+    <!-- Cross-infection from homosexual men to women -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to women">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/> <!-- No flow -->
+      <stratumSpecificRates stratum="Women" rateParameter="//@parameters.26"/> <!-- λ_hw -->
+      <stratumSpecificRates stratum="Heterosexual Men" rate="0.0"/> <!-- No flow -->
+    </outgoingFlows>
+    <!-- Cross-infection from homosexual men to heterosexual men -->
+    <outgoingFlows xsi:type="seir:ContactFlow" contactCompartment="//@compartments.1" target="//@compartments.1" description="Cross-infection from homosexual men to heterosexual men">
+      <stratumSpecificRates stratum="Homosexual Men" rate="0.0"/> <!-- No flow -->
+      <stratumSpecificRates stratum="Women" rate="0.0"/> <!-- No flow -->
+      <stratumSpecificRates stratum="Heterosexual Men" rateParameter="//@parameters.25"/> <!-- λ_hm -->
+    </outgoingFlows>
+  </compartments>
+  
+  <compartments PrimaryName="Infectious" SecondaryName="Untreated" population="79" product="//@products.0"/>
+  <compartments PrimaryName="Treated" SecondaryName="with ART" population="107" product="//@products.0"/>
+  <compartments PrimaryName="Infectious" SecondaryName="living with AIDS" population="47" product="//@products.0"/>
+  
+  <!-- Parameters, including expressions, already provided in user input -->
+  <parameters name="Ψ" expression="333" description="Recruitment rate into susceptible population" unit="individuals/year"/>
+  <parameters name="θ" expression="0.48" description="Proportion of men in population" unit="dimensionless"/>
+  <parameters name="γ" expression="0.92" description="Proportion of heterosexual men among all men" unit="dimensionless"/>
+  <parameters name="p" expression="0.90" description="Proportion of infected receiving initial treatment" unit="dimensionless"/>
+  <parameters name="μ" expression="0.0129" description="Natural mortality rate" unit="1/year"/>
+  <parameters name="d" expression="0.3333" description="AIDS-induced mortality rate" unit="1/year"/>
+  <parameters name="δ" expression="0.018" description="AIDS development rate in treated individuals" unit="1/year"/>
+  <parameters name="α" expression="0.3333" description="Departure rate from infected compartments" unit="1/year"/>
+  <parameters name="β_h" expression="0.44" description="Probability of homosexual transmission" unit="dimensionless"/>
+  <parameters name="β_s" expression="0.02" description="Probability of heterosexual transmission" unit="dimensionless"/>
+  <parameters name="β_hw" expression="0.018" description="Probability of transmission homosexual men to women" unit="dimensionless"/>
+  <parameters name="β_hm" expression="0.25" description="Probability of transmission homosexual men to heterosexual men" unit="dimensionless"/>
+  <parameters name="c_h" expression="7" description="Sexual partners rate for homosexuals" unit="1/year"/>
+  <parameters name="c_s" expression="4" description="Sexual partners rate for heterosexuals" unit="1/year"/>
+  <parameters name="c_hw" expression="2" description="Sexual partners rate homosexual men and women" unit="1/year"/>
+  <parameters name="c_hm" expression="1" description="Sexual partners rate homosexual and heterosexual men" unit="1/year"/>
+  <parameters name="B_h" type="EXPRESSION" expression="β_h * c_h" description="Combined transmission rate homosexuals" unit="1/year"/>
+  <parameters name="B_s" type="EXPRESSION" expression="β_s * c_s" description="Combined transmission rate heterosexuals" unit="1/year"/>
+  <parameters name="B_hw" type="EXPRESSION" expression="β_hw * c_hw" description="Combined transmission rate homosexual to women" unit="1/year"/>
+  <parameters name="B_hm" type="EXPRESSION" expression="β_hm * c_hm" description="Combined transmission rate homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="Ψθ(1-γ)" type="EXPRESSION" expression="Ψ * θ * (1 - γ)" description="Recruitment rate homosexual men" unit="individuals/year"/>
+  <parameters name="Ψ(1-θ)" type="EXPRESSION" expression="Ψ * (1 - θ)" description="Recruitment rate women" unit="individuals/year"/>
+  <parameters name="Ψθγ" type="EXPRESSION" expression="Ψ * θ * γ" description="Recruitment rate heterosexual men" unit="individuals/year"/>
+  <parameters name="αp" type="EXPRESSION" expression="α * p" description="Treatment initiation rate" unit="1/year"/>
+  <parameters name="α(1-p)" type="EXPRESSION" expression="α * (1 - p)" description="AIDS progression rate untreated" unit="1/year"/>
+  <parameters name="λ_h" type="EXPRESSION" expression="B_h * (I_h / (S_h + I_h))" description="Force of infection homosexual men" unit="1/year"/>
+  <parameters name="λ_hw" type="EXPRESSION" expression="B_hw * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to women" unit="1/year"/>
+  <parameters name="λ_hm" type="EXPRESSION" expression="B_hm * (I_h / (S_m + S_h + I_m + I_h))" description="Force of infection homosexual to heterosexual men" unit="1/year"/>
+  <parameters name="λ_m" type="EXPRESSION" expression="B_s * (I_m / (S_m + I_m))" description="Force of infection heterosexual men" unit="1/year"/>
+  <parameters name="λ_w" type="EXPRESSION" expression="B_s * (I_w / (S_w + I_w))" description="Force of infection women" unit="1/year"/>
+  
+  <birthSources>
+    <birthSources name="Recruitment of Homosexual Men" rateParameter="//@parameters.20" targetCompartment="//@compartments.0" targetStratum="Homosexual Men"/>
+    <birthSources name="Recruitment of Women" rateParameter="//@parameters.21" targetCompartment="//@compartments.0" targetStratum="Women"/>
+    <birthSources name="Recruitment of Heterosexual Men" rateParameter="//@parameters.22" targetCompartment="//@compartments.0" targetStratum="Heterosexual Men"/>
+  </birthSources>
+  
+  <deathSinks>
+    <deathSinks name="Natural Death from Susceptible (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Susceptible (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Susceptible (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.0" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Untreated Infected (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Untreated Infected (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.1" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from Treated (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from Treated (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.2" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Homosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="Natural Death from AIDS (Women)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="Natural Death from AIDS (Heterosexual Men)" rateParameter="//@parameters.4" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+    <deathSinks name="AIDS Death (Homosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Homosexual Men"/>
+    <deathSinks name="AIDS Death (Women)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Women"/>
+    <deathSinks name="AIDS Death (Heterosexual Men)" rateParameter="//@parameters.5" sourceCompartment="//@compartments.3" sourceStratum="Heterosexual Men"/>
+  </deathSinks>
+</seir:SEIRModel>
