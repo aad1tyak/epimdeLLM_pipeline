@@ -28,7 +28,7 @@ LLM2_PROMPT = prompts["smart_LLM2_PROMPT"]
 LLM3A_PROMPT = prompts["smart_LLM3A_PROMPT"]
 LLM3B_PROMPT = prompts["smart_LLM3B_PROMPT"]
 
-METAMODEL_FILENAME = "metamodel.json"
+METAMODEL_FILENAME = "compartmental_metamodel.json"
 SIMULATION_SKELETON_FILE = "simulation_skeleton.txt"
 
 models = load_json_file("models.json")
@@ -185,7 +185,7 @@ def generate_seirmodel(
 
     try:
         # Ensure the output directory exists
-        output_dir = "prompt_sample"
+        output_dir = "ChatGPT_prompt_sample"
         os.makedirs(output_dir, exist_ok=True)
         output_file = os.path.join(output_dir, output_fileName)
         
